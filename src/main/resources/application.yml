@@ -1,0 +1,23 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api  # 所有接口都以/api开头
+
+spring:
+  # 指定使用哪个环境：dev=开发，prod=生产
+  # 现在用dev，等上线时改成prod
+  profiles:
+    active: dev
+
+# MyBatis-Plus配置
+mybatis-plus:
+  # 实体类扫描包
+  type-aliases-package: com.stringmoment.entity
+  # 全局配置
+  global-config:
+    db-config:
+      id-type: auto
+  # 具体配置
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
