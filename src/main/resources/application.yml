@@ -11,6 +11,8 @@ spring:
 
 # MyBatis-Plus配置
 mybatis-plus:
+  # 扫描XML映射文件
+  mapper-locations: classpath:mapper/*.xml
   # 实体类扫描包
   type-aliases-package: com.stringmoment.entity
   # 全局配置
@@ -21,3 +23,9 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# JWT配置
+jwt:
+  secret: string-moment-secret-key-2026-1234567890
+  expiration: 86400000  # 24小时
+  header: Authorization
