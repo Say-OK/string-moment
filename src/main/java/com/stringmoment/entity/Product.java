@@ -53,7 +53,7 @@ public class Product implements Serializable {
      * 总库存
      */
     @TableField(value = "stock")
-    private Integer stock;
+    private Integer stock = 0;
     
     /**
      * 商品主图URL
