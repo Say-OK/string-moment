@@ -16,17 +16,19 @@ public class WebConfig implements WebMvcConfigurer {
     
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // 配置需要Token验证的接口
         registry.addInterceptor(jwtInterceptor)
-                .addPathPatterns(
-                    "/user/info",          // 用户信息
-                    "/address/**",         // 地址相关（所有接口）
-                    "/order/**",           // 订单相关（所有接口）
-                    "/seckill/**"          // 秒杀相关（所有接口）
-                )
+                // 1. 拦截所有接口
+                .addPathPatterns("/**")
+
+                // 2. 排除无需token的公开接口
                 .excludePathPatterns(
-                    "/user/register",      // 注册（不需要Token）
-                    "/user/login"          // 登录（不需要Token）
+                        // 用户模块公开接口
+                        "/user/register",   // 注册
+                        "/user/login",      // 登录
+
+                        // 商品模块公开接口
+                        "/product/list",    // 商品列表
+                        "/product/detail"   // 商品详情
                 );
     }
 }
