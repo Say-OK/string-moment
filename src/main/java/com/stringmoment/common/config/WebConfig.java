@@ -23,12 +23,12 @@ public class WebConfig implements WebMvcConfigurer {
                 // 2. 排除无需token的公开接口
                 .excludePathPatterns(
                         // 用户模块公开接口
-                        "/user/register",   // 注册
-                        "/user/login",      // 登录
+                        "/user/register",    // 注册
+                        "/user/login",       // 登录
 
                         // 商品模块公开接口
-                        "/product/list",    // 商品列表
-                        "/product/detail"   // 商品详情
+                        "/product/list",     // 商品列表
+                        "/product/detail/**" // 商品详情
                 );
     }
 }
