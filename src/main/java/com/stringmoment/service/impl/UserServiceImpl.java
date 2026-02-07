@@ -31,7 +31,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Transactional(rollbackFor = Exception.class)
     public UserVO register(UserRegisterDTO dto) {
         // 1. 检查用户名是否已存在
-        boolean usernameExists = this.lambdaQuery()
+        boolean usernameExists = lambdaQuery()
                 .eq(User::getUsername, dto.getUsername())
                 .exists();
         if (usernameExists) {
@@ -39,7 +39,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         // 2. 检查手机号是否已存在
-        boolean phoneExists = this.lambdaQuery()
+        boolean phoneExists = lambdaQuery()
                 .eq(User::getPhone, dto.getPhone())
                 .exists();
         if (phoneExists) {
@@ -55,7 +55,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .build();
 
         // 4. 保存到数据库
-        this.save(user);
+        save(user);
 
         // 5. 返回VO
         return UserVO.fromEntity(user);
@@ -67,7 +67,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public LoginResultVO login(UserLoginDTO dto) {
         // 1. 查询用户（状态正常）
-        User user = this.lambdaQuery()
+        User user = lambdaQuery()
                 .eq(User::getUsername, dto.getUsername())
                 .eq(User::getStatus, 1)
                 .one();
@@ -92,7 +92,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public UserVO getUserInfo(Long userId) {
-        User user = this.getById(userId);
+        User user = getById(userId);
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
