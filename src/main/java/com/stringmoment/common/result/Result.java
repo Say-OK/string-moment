@@ -31,11 +31,17 @@ public class Result<T> implements Serializable {  // 实现序列化接口
         return new Result<>(200, "success", data);
     }
     
-    // 成功响应 - 自定义消息
+    // 成功响应 - 自定义消息，有数据
     public static <T> Result<T> success(String message, T data) {
         return new Result<>(200, message, data);
     }
-    
+
+    // 成功响应 - 自定义消息，无数据
+    public static <T> Result<T> success(String message) {
+        return new Result<>(200, message, null);
+    }
+
+
     // 失败响应
     public static <T> Result<T> error(String message) {
         return new Result<>(400, message, null);
