@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * 地址Controller
  */
@@ -29,5 +31,15 @@ public class UserAddressController {
         Long userId = (Long) request.getAttribute("userId");
         AddressVO addressVO = userAddressService.addAddress(userId, dto);
         return Result.success("地址添加成功", addressVO);
+    }
+
+    /**
+     * 获取地址列表
+     */
+    @GetMapping("/list")
+    public Result<List<AddressVO>> getAddressList(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        List<AddressVO> addressList = userAddressService.getAddressList(userId);
+        return Result.success(addressList);
     }
 }

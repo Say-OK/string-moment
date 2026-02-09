@@ -10,6 +10,9 @@ import com.stringmoment.service.UserAddressService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserAddress> implements UserAddressService {
 
@@ -55,4 +58,22 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
         // 5. 返回VO
         return AddressVO.fromEntity(address);
     }
+
+    /**
+     * 获取地址列表
+     */
+    @Override
+    public List<AddressVO> getAddressList(Long userId) {
+        // 1. 查询并按创建时间倒序
+        List<UserAddress> addressList = lambdaQuery()
+                .eq(UserAddress::getUserId, userId)
+                .orderByDesc(UserAddress::getCreateTime)
+                .list();
+
+        // 2. 转换为VO
+        return addressList.stream()
+                .map(AddressVO::fromEntity)
+                .collect(Collectors.toList());
+    }
+
 }
