@@ -42,4 +42,14 @@ public class UserAddressController {
         List<AddressVO> addressList = userAddressService.getAddressList(userId);
         return Result.success(addressList);
     }
+
+    /**
+     * 设置默认地址
+     */
+    @PutMapping("/set-default/{id}")
+    public Result<AddressVO> setDefaultAddress(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        AddressVO addressVO = userAddressService.setDefaultAddress(id, userId);
+        return Result.success("默认地址设置成功", addressVO);
+    }
 }

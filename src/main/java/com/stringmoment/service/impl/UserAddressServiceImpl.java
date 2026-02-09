@@ -10,6 +10,7 @@ import com.stringmoment.service.UserAddressService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -74,6 +75,44 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
         return addressList.stream()
                 .map(AddressVO::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 设置默认地址
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AddressVO setDefaultAddress(Long id, Long userId) {
+        // 1. 查询地址信息
+        UserAddress address = lambdaQuery()
+                .eq(UserAddress::getId, id)
+                .eq(UserAddress::getUserId, userId)
+                .one();
+
+        // 2. 为空检查
+        if (address == null) {
+            throw new RuntimeException("地址不存在");
+        }
+
+        // 3. 状态检查：如果已经是默认地址，直接返回
+        if (address.getIsDefault() == 1) {
+            return AddressVO.fromEntity(address);
+        }
+
+        // 4. 取消其他默认地址
+        lambdaUpdate()
+                .set(UserAddress::getIsDefault, 0)
+                .set(UserAddress::getUpdateTime, LocalDateTime.now())  // 条件更新自动注入不生效
+                .eq(UserAddress::getUserId, userId)
+                .eq(UserAddress::getIsDefault, 1)
+                .update();
+
+        // 5. 设置当前地址为默认
+        address.setIsDefault(1);
+        updateById(address);
+
+        // 6. 返回更新后的地址
+        return AddressVO.fromEntity(address);
     }
 
 }
