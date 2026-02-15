@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -27,6 +26,15 @@ public class OrderVO {
     private Integer orderType;      // 1-普通订单，2-秒杀订单
     private Long seckillActivityId; // 秒杀活动ID
     private Long addressId;
+
+    // 地址快照
+    private String receiverName;
+    private String receiverPhone;
+    private String receiverProvince;
+    private String receiverCity;
+    private String receiverDistrict;
+    private String receiverDetailAddress;
+
     private Integer status;         // 0-待支付，1-已支付，2-已发货，3-已完成，4-已取消
     private String paymentTime;
     private String deliveryTime;
@@ -34,7 +42,6 @@ public class OrderVO {
     private String closeTime;
     private String createTime;
     private String updateTime;
-    private AddressVO address;       // 收货地址
     private List<OrderItemVO> items; // 订单商品
     
     /**
@@ -53,6 +60,13 @@ public class OrderVO {
         vo.setPayAmount(order.getPayAmount());
         vo.setOrderType(order.getOrderType());
         vo.setSeckillActivityId(order.getSeckillActivityId());
+        vo.setAddressId(order.getAddressId());
+        vo.setReceiverName(order.getReceiverName());
+        vo.setReceiverPhone(order.getReceiverPhone());
+        vo.setReceiverProvince(order.getReceiverProvince());
+        vo.setReceiverCity(order.getReceiverCity());
+        vo.setReceiverDistrict(order.getReceiverDistrict());
+        vo.setReceiverDetailAddress(order.getReceiverDetailAddress());
         vo.setAddressId(order.getAddressId());
         vo.setStatus(order.getStatus());
         

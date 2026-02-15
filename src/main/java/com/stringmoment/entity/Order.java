@@ -67,7 +67,28 @@ public class Order implements Serializable {
      */
     @TableField(value = "address_id")
     private Long addressId;
-    
+
+    /**
+     * 收货地址快照
+     */
+    @TableField(value = "receiver_name")
+    private String receiverName;
+
+    @TableField(value = "receiver_phone")
+    private String receiverPhone;
+
+    @TableField(value = "receiver_province")
+    private String receiverProvince;
+
+    @TableField(value = "receiver_city")
+    private String receiverCity;
+
+    @TableField(value = "receiver_district")
+    private String receiverDistrict;
+
+    @TableField(value = "receiver_detail_address")
+    private String receiverDetailAddress;
+
     /**
      * 状态：0-待支付，1-已支付，2-已发货，3-已完成，4-已取消
      */
