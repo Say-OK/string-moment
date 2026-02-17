@@ -115,4 +115,20 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
         return AddressVO.fromEntity(address);
     }
 
+    /**
+     * 根据地址ID和用户ID查询地址
+     */
+    @Override
+    public AddressVO getAddressByIdAndUser(Long id, Long userId) {
+        UserAddress address = lambdaQuery()
+                .eq(UserAddress::getId, id)
+                .eq(UserAddress::getUserId, userId)
+                .one();
+
+        if (address == null) {
+            throw new BusinessException("收货地址不存在");
+        }
+
+        return AddressVO.fromEntity(address);
+    }
 }

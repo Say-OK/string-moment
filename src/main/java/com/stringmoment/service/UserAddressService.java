@@ -28,4 +28,9 @@ public interface UserAddressService extends IService<UserAddress> {
      * 设置默认地址
      */
     AddressVO setDefaultAddress(Long id, Long userId);
+
+    /**
+     * 根据地址ID和用户ID查询地址
+     */
+    AddressVO getAddressByIdAndUser(Long id, Long userId);
 }
