@@ -2,16 +2,15 @@ package com.stringmoment.controller;
 
 import com.stringmoment.common.result.Result;
 import com.stringmoment.model.request.OrderCreateDTO;
+import com.stringmoment.model.request.OrderListQueryDTO;
+import com.stringmoment.model.response.OrderPageVO;
 import com.stringmoment.model.response.OrderVO;
 import com.stringmoment.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 订单Controller
@@ -25,7 +24,7 @@ public class OrderController {
     private OrderService orderService;
 
     /**
-     * 创建订单
+     * 创建普通订单
      */
     @PostMapping("/create")
     public Result<OrderVO> createOrder(@RequestBody @Valid OrderCreateDTO dto, HttpServletRequest request) {
@@ -33,4 +32,16 @@ public class OrderController {
         OrderVO orderVO = orderService.createOrder(userId, dto);
         return Result.success("订单创建成功", orderVO);
     }
+
+    /**
+     * 获取订单列表
+     */
+    @GetMapping("/list")
+    public Result<OrderPageVO> getOrderList(@Valid OrderListQueryDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        OrderPageVO result = orderService.getOrderList(userId, dto);
+        return Result.success(result);
+    }
+
+
 }

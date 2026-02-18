@@ -1,5 +1,9 @@
 package com.stringmoment.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.common.util.OrderNoGenerator;
@@ -8,9 +12,8 @@ import com.stringmoment.entity.OrderItem;
 import com.stringmoment.entity.Product;
 import com.stringmoment.mapper.OrderMapper;
 import com.stringmoment.model.request.OrderCreateDTO;
-import com.stringmoment.model.response.AddressVO;
-import com.stringmoment.model.response.OrderItemVO;
-import com.stringmoment.model.response.OrderVO;
+import com.stringmoment.model.request.OrderListQueryDTO;
+import com.stringmoment.model.response.*;
 import com.stringmoment.service.OrderItemService;
 import com.stringmoment.service.OrderService;
 import com.stringmoment.service.ProductService;
@@ -39,7 +42,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     private OrderNoGenerator orderNoGenerator;
 
     /**
-     * 创建订单
+     * 创建普通订单
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -162,5 +165,75 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         OrderVO orderVO = OrderVO.fromEntity(order);
         orderVO.setItems(orderItemVOList);
         return orderVO;
+    }
+
+    /**
+     * 获取订单列表
+     */
+    @Override
+    public OrderPageVO getOrderList(Long userId, OrderListQueryDTO dto) {
+        // 1. 创建查询对象
+        LambdaQueryChainWrapper<Order> query = lambdaQuery()
+                .eq(Order::getUserId, userId);
+
+        // 2. 拼接动态条件
+        if (dto.getStatus() != null) {
+            query.eq(Order::getStatus, dto.getStatus());
+        }
+        if (dto.getOrderType() != null) {
+            query.eq(Order::getOrderType, dto.getOrderType());
+        }
+        query.orderByDesc(Order::getCreateTime);
+
+        // 3. 分页查询 + 参数校验
+        IPage<Order> page = query.page(new Page<>(
+                Math.max(dto.getPage(), 1),
+                Math.max(Math.min(dto.getSize(), 100), 1)
+        ));
+
+
+        // 4. 处理空订单情况
+        List<Long> orderIds = page.getRecords().stream()
+                .map(Order::getId)
+                .toList();
+
+        if (orderIds.isEmpty()) {
+            return OrderPageVO.builder()
+                    .list(Collections.emptyList())
+                    .total(page.getTotal())
+                    .page((int) page.getCurrent())
+                    .size((int) page.getSize())
+                    .pages((int) page.getPages())
+                    .build();
+        }
+
+        // 5. 批量查询订单商品项
+        Map<Long, List<OrderItem>> orderItemsMap = orderItemService.getOrderItemsByOrderIds(orderIds);
+
+        // 6. 组装订单简略信息列表
+        List<OrderSimpleVO> orderSimpleVOList = page.getRecords().stream()
+                .map(order -> {
+                    OrderSimpleVO vo = OrderSimpleVO.fromEntity(order);
+                    List<OrderItem> items = orderItemsMap.getOrDefault(order.getId(), Collections.emptyList());
+                    vo.setProductCount(items.size());
+
+                    if (!items.isEmpty()) {
+                        OrderItem firstItem = items.get(0);
+                        vo.setFirstProductName(firstItem.getProductName());
+                        vo.setFirstProductImage(firstItem.getProductImage());
+                        vo.setFirstProductQuantity(firstItem.getQuantity());
+                    }
+                    return vo;
+                })
+                .toList();
+
+
+        return OrderPageVO.builder()
+                .list(orderSimpleVOList)
+                .total(page.getTotal())
+                .page((int) page.getCurrent())
+                .size((int) page.getSize())
+                .pages((int) page.getPages())
+                .build();
     }
 }

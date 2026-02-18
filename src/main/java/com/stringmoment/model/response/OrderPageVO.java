@@ -16,7 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 public class OrderPageVO {
     
-    private List<OrderVO> list;  // 订单列表
+    private List<OrderSimpleVO> list;  // 订单列表
     private Long total;          // 总记录数
     private Integer page;        // 当前页码
     private Integer size;        // 每页数量

@@ -3,6 +3,8 @@ package com.stringmoment.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.stringmoment.entity.Order;
 import com.stringmoment.model.request.OrderCreateDTO;
+import com.stringmoment.model.request.OrderListQueryDTO;
+import com.stringmoment.model.response.OrderPageVO;
 import com.stringmoment.model.response.OrderVO;
 import jakarta.validation.Valid;
 
@@ -12,7 +14,12 @@ import jakarta.validation.Valid;
 public interface OrderService extends IService<Order> {
 
     /**
-     * 创建订单
+     * 创建普通订单
      */
     OrderVO createOrder(Long userId, @Valid OrderCreateDTO dto);
+
+    /**
+     * 获取订单列表
+     */
+    OrderPageVO getOrderList(Long userId, @Valid OrderListQueryDTO dto);
 }
