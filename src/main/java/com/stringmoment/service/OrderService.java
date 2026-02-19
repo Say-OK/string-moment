@@ -22,4 +22,9 @@ public interface OrderService extends IService<Order> {
      * 获取订单列表
      */
     OrderPageVO getOrderList(Long userId, @Valid OrderListQueryDTO dto);
+
+    /**
+     * 获取订单详情
+     */
+    OrderVO getOrderDetail(Long id, Long userId);
 }

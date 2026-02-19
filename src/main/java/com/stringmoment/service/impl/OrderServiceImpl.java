@@ -1,6 +1,5 @@
 package com.stringmoment.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -235,5 +234,33 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 .size((int) page.getSize())
                 .pages((int) page.getPages())
                 .build();
+    }
+
+    /**
+     * 获取订单详情
+     */
+    @Override
+    public OrderVO getOrderDetail(Long id, Long userId) {
+        // 1. 获取订单
+        Order order = lambdaQuery()
+                .eq(Order::getId, id)
+                .eq(Order::getUserId, userId)
+                .one();
+
+        if (order == null) {
+            throw new BusinessException("订单不存在");
+        }
+
+        // 2. 获取订单商品详情
+        List<OrderItem> itemList = orderItemService.lambdaQuery()
+                .eq(OrderItem::getOrderId, order.getId())
+                .list();
+
+        List<OrderItemVO> itemVOList = itemList.stream().map(OrderItemVO::fromEntity).toList();
+
+        // 3. 创建vo
+        OrderVO orderVO = OrderVO.fromEntity(order);
+        orderVO.setItems(itemVOList);
+        return orderVO;
     }
 }

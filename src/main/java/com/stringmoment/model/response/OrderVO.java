@@ -67,7 +67,6 @@ public class OrderVO {
         vo.setReceiverCity(order.getReceiverCity());
         vo.setReceiverDistrict(order.getReceiverDistrict());
         vo.setReceiverDetailAddress(order.getReceiverDetailAddress());
-        vo.setAddressId(order.getAddressId());
         vo.setStatus(order.getStatus());
         
         // 格式化时间

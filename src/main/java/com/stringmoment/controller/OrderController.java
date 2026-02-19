@@ -43,5 +43,13 @@ public class OrderController {
         return Result.success(result);
     }
 
-
+    /**
+     * 获取订单详情
+     */
+    @GetMapping("/detail/{id}")
+    public Result<OrderVO> getOrderDetail(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        OrderVO orderVO = orderService.getOrderDetail(id, userId);
+        return Result.success(orderVO);
+    }
 }
