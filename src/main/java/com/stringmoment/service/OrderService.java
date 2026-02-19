@@ -27,4 +27,9 @@ public interface OrderService extends IService<Order> {
      * 获取订单详情
      */
     OrderVO getOrderDetail(Long id, Long userId);
+
+    /**
+     * 取消订单
+     */
+    void cancelOrder(Long id, Long userId);
 }

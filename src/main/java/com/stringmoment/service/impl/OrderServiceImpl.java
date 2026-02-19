@@ -1,5 +1,6 @@
 package com.stringmoment.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -262,5 +264,66 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         OrderVO orderVO = OrderVO.fromEntity(order);
         orderVO.setItems(itemVOList);
         return orderVO;
+    }
+
+    /**
+     * 取消订单
+     */
+    @Override
+    @Transactional
+    public void cancelOrder(Long id, Long userId) {
+        // 1. 检查权限
+        Order order = lambdaQuery()
+                .eq(Order::getId, id)
+                .eq(Order::getUserId, userId)
+                .one();
+
+        if (order == null) {
+            throw new BusinessException("订单不存在");
+        }
+        if (order.getStatus() != 0) {
+            throw new BusinessException("当前状态无法取消订单");
+        }
+
+        // 2. 软删除订单
+        boolean success = lambdaUpdate()
+                .set(Order::getStatus, 4)
+                .set(Order::getCloseTime, LocalDateTime.now())
+                .eq(Order::getId, id)
+                .eq(Order::getUserId, userId)
+                .eq(Order::getStatus, 0)
+                .update();
+
+        if (!success) {
+            throw new BusinessException("订单状态已发生变化，取消失败");
+        }
+
+        // 3. 回滚商品库存、售出数量
+        List<OrderItem> items = orderItemService.lambdaQuery()
+                .eq(OrderItem::getOrderId, order.getId())
+                .list();
+
+        for (OrderItem item : items) {
+            Long productId = item.getProductId();
+            Integer quantity = item.getQuantity();
+
+            if (productId == null || productId <= 0) {
+                throw new BusinessException("商品ID异常，无法回滚库存");
+            }
+            if (quantity == null || quantity <= 0) {
+                throw new BusinessException("商品数量异常");
+            }
+
+            LambdaUpdateWrapper<Product> wrapper = new LambdaUpdateWrapper<>();
+            wrapper.setSql("stock = stock + " + quantity)
+                    .setSql("sale_count = sale_count - " + quantity)
+                    .eq(Product::getId, productId)
+                    .ge(Product::getSaleCount, quantity);  // 防止销量为负
+
+            boolean update = productService.update(wrapper);
+            if (!update) {
+                throw new BusinessException("商品库存回滚失败");
+            }
+        }
     }
 }

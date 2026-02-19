@@ -52,4 +52,14 @@ public class OrderController {
         OrderVO orderVO = orderService.getOrderDetail(id, userId);
         return Result.success(orderVO);
     }
+
+    /**
+     * 取消订单
+     */
+    @PostMapping("/cancel/{id}")
+    public Result<Void> cancelOrder(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        orderService.cancelOrder(id, userId);
+        return Result.success("订单取消成功");
+    }
 }
