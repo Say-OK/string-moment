@@ -62,4 +62,14 @@ public class OrderController {
         orderService.cancelOrder(id, userId);
         return Result.success("订单取消成功");
     }
+
+    /**
+     * 支付订单
+     */
+    @PostMapping("/pay/{id}")
+    public Result<Void> payOrder(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        orderService.payOrder(id, userId);
+        return Result.success("订单支付成功");
+    }
 }

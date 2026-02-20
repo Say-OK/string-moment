@@ -272,7 +272,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     @Override
     @Transactional
     public void cancelOrder(Long id, Long userId) {
-        // 1. 检查权限
+        // 1. 检查权限、订单状态
         Order order = lambdaQuery()
                 .eq(Order::getId, id)
                 .eq(Order::getUserId, userId)
@@ -324,6 +324,40 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             if (!update) {
                 throw new BusinessException("商品库存回滚失败");
             }
+        }
+    }
+
+    /**
+     * 支付订单
+     * 注意：当前为模拟支付
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void payOrder(Long id, Long userId) {
+        // 1. 检查权限、订单状态
+        Order order = lambdaQuery()
+                .eq(Order::getId, id)
+                .eq(Order::getUserId, userId)
+                .one();
+
+        if (order == null) {
+            throw new BusinessException("订单不存在");
+        }
+        if (order.getStatus() != 0) {
+            throw new BusinessException("当前状态无法支付订单");
+        }
+
+        // 2. 更新订单状态
+        boolean success = lambdaUpdate()
+                .set(Order::getStatus, 1)
+                .set(Order::getPaymentTime, LocalDateTime.now())
+                .eq(Order::getId, id)
+                .eq(Order::getUserId, userId)
+                .eq(Order::getStatus, 0)
+                .update();
+
+        if (!success) {
+            throw new BusinessException("支付订单失败");
         }
     }
 }

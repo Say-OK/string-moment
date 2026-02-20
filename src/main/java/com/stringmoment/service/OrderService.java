@@ -32,4 +32,9 @@ public interface OrderService extends IService<Order> {
      * 取消订单
      */
     void cancelOrder(Long id, Long userId);
+
+    /**
+     * 支付订单
+     */
+    void payOrder(Long id, Long userId);
 }
