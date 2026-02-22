@@ -32,10 +32,9 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
         }
 
         if (StringUtils.hasText(dto.getKeyword())) {
-            query.and(w -> w
-                    .like(Product::getName, dto.getKeyword()))
+            query.and(w -> w.like(Product::getName, dto.getKeyword())
                     .or()
-                    .like(Product::getDescription, dto.getKeyword());
+                    .like(Product::getDescription, dto.getKeyword()));
         }
 
         // 3. 分页查询 + 参数校验
