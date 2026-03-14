@@ -22,4 +22,8 @@ public interface SeckillActivityService extends IService<SeckillActivity> {
      */
     SeckillActivityVO getSeckillActivityDetail(Long id);
 
+    /**
+     * 检查用户秒杀资格
+     */
+    Integer checkSeckillQualification(Long activityId, Long userId);
 }

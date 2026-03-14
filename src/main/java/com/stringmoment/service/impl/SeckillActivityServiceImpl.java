@@ -11,6 +11,7 @@ import com.stringmoment.model.response.SeckillActivitySimpleVO;
 import com.stringmoment.model.response.SeckillActivityVO;
 import com.stringmoment.service.ProductService;
 import com.stringmoment.service.SeckillActivityService;
+import com.stringmoment.service.SeckillOrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -26,6 +27,9 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
 
     @Autowired
     private ProductService productService;
+    
+    @Autowired
+    private SeckillOrderService seckillOrderService;
 
     /**
      * 获取秒杀活动列表
@@ -87,5 +91,38 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
         ProductVO productVO = productService.getProductDetail(activity.getProductId());
 
         return SeckillActivityVO.fromEntity(activity, productVO);
+    }
+
+    /**
+     * 检查用户秒杀资格
+     */
+    @Override
+    public Integer checkSeckillQualification(Long activityId, Long userId) {
+        // 1. 查询秒杀活动
+        SeckillActivity activity = getById(activityId);
+        if (activity == null) {
+            throw new BusinessException("秒杀活动不存在");
+        }
+
+        // 2. 检查活动状态
+        if (activity.getStatus() == 0) {
+            return 3; // 活动未开始
+        } else if (activity.getStatus() == 2) {
+            return 4; // 活动已结束
+        }
+
+        // 3. 检查库存
+        if (activity.getAvailableStock() <= 0) {
+            return 1; // 库存不足
+        }
+
+        // 4. 检查是否重复秒杀
+        boolean hasParticipated = seckillOrderService.existsByActivityIdAndUserId(activityId, userId);
+        if (hasParticipated) {
+            return 2; // 重复秒杀
+        }
+
+        // 5. 所有检查通过，返回可秒杀状态
+        return 0; // 可秒杀
     }
 }
