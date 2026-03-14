@@ -1,9 +1,9 @@
 package com.stringmoment.common.exception;
 
 import com.stringmoment.common.result.Result;
-
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -11,14 +11,14 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
-
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * 全局异常处理器
  */
-@RestControllerAdvice  // 相当于 @ControllerAdvice + @ResponseBody，作用：1. 处理全局异常 2. 返回JSON格式
+@Slf4j
+@RestControllerAdvice  // 相当于 @ControllerAdvice + @ResponseBody，作用：1. 拦截并处理所有Controller抛出的异常 2. 返回JSON格式
 public class GlobalExceptionHandler {
 
     /**
@@ -84,6 +84,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(NoHandlerFoundException.class)
     public Result<?> handleNotFoundException(NoHandlerFoundException e) {
+        log.debug("请求的资源不存在: {}", e.getRequestURL());
         return Result.error(404, "请求的资源不存在");
     }
 
@@ -92,7 +93,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(RuntimeException.class)
     public Result<?> handleRuntimeException(RuntimeException e) {
-        e.printStackTrace();
+        log.error("系统异常: {}", e.getMessage(), e); // 用日志记录异常
         return Result.error(500, "系统异常: " + e.getMessage());
     }
 
@@ -101,7 +102,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public Result<?> handleException(Exception e) {
-        e.printStackTrace(); // 记录日志
+        log.error("系统异常: {}", e.getMessage(), e); // 用日志记录异常
         return Result.error(500, "系统异常");
     }
 }

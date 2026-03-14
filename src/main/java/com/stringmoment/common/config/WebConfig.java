@@ -31,6 +31,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/product/detail/*", // 商品详情
 
                         // 秒杀模块公开接口
+                        "/seckill/activity/list",     // 秒杀活动列表
                         "/seckill/activity/detail/*"  // 秒杀活动详情
                 );
     }
