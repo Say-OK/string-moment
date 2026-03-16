@@ -33,7 +33,8 @@ public class SeckillOrder implements Serializable {
     private Long userId;
     
     /**
-     * 订单ID
+     * 关联的订单ID
+     * 通过orderId关联Order表，获取订单状态、支付时间等完整信息
      */
     @TableField(value = "order_id")
     private Long orderId;
@@ -46,16 +47,15 @@ public class SeckillOrder implements Serializable {
     
     /**
      * 秒杀价格（快照）
+     * 保存秒杀时的价格，防止后续活动价格变化影响已生成的订单
      */
     @TableField(value = "seckill_price")
     private BigDecimal seckillPrice;
     
     /**
-     * 状态：0-秒杀成功未支付，1-已支付
+     * 秒杀参与时间
+     * 记录用户参与秒杀的具体时间
      */
-    @TableField(value = "status")
-    private Integer status = 0;
-
-    @TableField(value = "create_time", fill = FieldFill.INSERT)
-    private LocalDateTime createTime;
+    @TableField(value = "participate_time", fill = FieldFill.INSERT)
+    private LocalDateTime participateTime;
 }

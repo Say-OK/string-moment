@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.stereotype.Component;
+
 import java.time.LocalDateTime;
 
 /**
@@ -21,6 +22,7 @@ public class MyMetaObjectHandler implements MetaObjectHandler {
         // fillStrategy 会自动检查字段是否存在，不存在就跳过
         this.fillStrategy(metaObject, "createTime", LocalDateTime.now());
         this.fillStrategy(metaObject, "updateTime", LocalDateTime.now());
+        this.fillStrategy(metaObject, "participateTime", LocalDateTime.now());
     }
     
     @Override
