@@ -9,10 +9,10 @@ import com.stringmoment.entity.SeckillOrder;
 public interface SeckillOrderService extends IService<SeckillOrder> {
 
     /**
-     * 检查用户是否已经参与过指定的秒杀活动
+     * 检查用户秒杀资格（前端展示用）
      * @param activityId 秒杀活动ID
      * @param userId 用户ID
-     * @return true-已参与过，false-未参与过
+     * @return 0-可秒杀，1-库存不足，2-重复秒杀，3-活动未开始，4-活动已结束
      */
-    boolean existsByActivityIdAndUserId(Long activityId, Long userId);
+    Integer checkSeckillQualification(Long activityId, Long userId);
 }

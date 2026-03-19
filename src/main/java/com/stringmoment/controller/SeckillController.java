@@ -4,6 +4,7 @@ import com.stringmoment.common.result.Result;
 import com.stringmoment.model.response.SeckillActivitySimpleVO;
 import com.stringmoment.model.response.SeckillActivityVO;
 import com.stringmoment.service.SeckillActivityService;
+import com.stringmoment.service.SeckillOrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -19,6 +20,9 @@ public class SeckillController {
     @Autowired
     private SeckillActivityService seckillActivityService;
 
+    @Autowired
+    private SeckillOrderService seckillOrderService;
+
     /**
      * 获取秒杀活动列表
      */
@@ -33,7 +37,7 @@ public class SeckillController {
      */
     @GetMapping("/activity/detail/{id}")
     public Result<SeckillActivityVO> getSeckillActivityDetail(@PathVariable Long id) {
-         SeckillActivityVO seckillActivityVO = seckillActivityService.getSeckillActivityDetail(id);
+        SeckillActivityVO seckillActivityVO = seckillActivityService.getSeckillActivityDetail(id);
         return Result.success(seckillActivityVO);
     }
 
@@ -43,7 +47,7 @@ public class SeckillController {
     @GetMapping("/qualification/{activityId}")
     public Result<Integer> checkSeckillQualification(@PathVariable Long activityId, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
-        Integer qualification = seckillActivityService.checkSeckillQualification(activityId, userId);
+        Integer qualification = seckillOrderService.checkSeckillQualification(activityId, userId);
         return Result.success(qualification);
     }
 }
