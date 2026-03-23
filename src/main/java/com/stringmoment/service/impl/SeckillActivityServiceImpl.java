@@ -2,6 +2,7 @@ package com.stringmoment.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stringmoment.common.constant.SeckillConstant;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.entity.Product;
 import com.stringmoment.entity.SeckillActivity;
@@ -39,7 +40,10 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
         if (status != null) {
             wrapper.eq(SeckillActivity::getStatus, status);
         } else {
-            wrapper.le(SeckillActivity::getStatus, 1);
+            wrapper.in(SeckillActivity::getStatus,
+                    SeckillConstant.SECKILL_STATUS_NOT_STARTED,
+                    SeckillConstant.SECKILL_STATUS_ON_GOING
+            );
         }
 
         wrapper.orderByAsc(SeckillActivity::getStartTime);
