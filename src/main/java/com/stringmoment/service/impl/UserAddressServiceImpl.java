@@ -125,10 +125,6 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
                 .eq(UserAddress::getUserId, userId)
                 .one();
 
-        if (address == null) {
-            throw new BusinessException("收货地址不存在");
-        }
-
         return AddressVO.fromEntity(address);
     }
 }

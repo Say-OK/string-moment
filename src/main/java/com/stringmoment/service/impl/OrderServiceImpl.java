@@ -50,6 +50,9 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
     public OrderVO createOrder(Long userId, OrderCreateDTO dto) {
         // 1. 获取并验证地址
         AddressVO address = userAddressService.getAddressByIdAndUser(dto.getAddressId(), userId);
+        if (address == null) {
+            throw new BusinessException("收货地址不存在");
+        }
 
         // 2. 获取商品信息
         List<Long> productIds = dto.getItems().stream()
