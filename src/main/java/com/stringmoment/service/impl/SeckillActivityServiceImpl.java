@@ -41,8 +41,8 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
             wrapper.eq(SeckillActivity::getStatus, status);
         } else {
             wrapper.in(SeckillActivity::getStatus,
-                    SeckillConstant.SECKILL_STATUS_NOT_STARTED,
-                    SeckillConstant.SECKILL_STATUS_ON_GOING
+                    SeckillConstant.SECKILL_ACTIVITY_NOT_STARTED,
+                    SeckillConstant.SECKILL_ACTIVITY_ON_GOING
             );
         }
 

@@ -40,8 +40,8 @@ public class SeckillStatusTask {
         List<SeckillActivity> activities = seckillActivityService.list(
             new LambdaQueryWrapper<SeckillActivity>()
                 .in(SeckillActivity::getStatus,
-                        SeckillConstant.SECKILL_STATUS_NOT_STARTED,
-                        SeckillConstant.SECKILL_STATUS_ON_GOING
+                        SeckillConstant.SECKILL_ACTIVITY_NOT_STARTED,
+                        SeckillConstant.SECKILL_ACTIVITY_ON_GOING
                 )
         );
 
@@ -71,11 +71,11 @@ public class SeckillStatusTask {
 
     private Integer calculateStatus(SeckillActivity activity, LocalDateTime now) {
         if (now.isBefore(activity.getStartTime())) {
-            return SeckillConstant.SECKILL_STATUS_NOT_STARTED;
+            return SeckillConstant.SECKILL_ACTIVITY_NOT_STARTED;
         } else if (now.isAfter(activity.getEndTime())) {
-            return SeckillConstant.SECKILL_STATUS_ENDED;
+            return SeckillConstant.SECKILL_ACTIVITY_ENDED;
         } else {
-            return SeckillConstant.SECKILL_STATUS_ON_GOING;
+            return SeckillConstant.SECKILL_ACTIVITY_ON_GOING;
         }
     }
 
@@ -85,10 +85,10 @@ public class SeckillStatusTask {
     private void handleStatusChange(SeckillActivity activity, Integer oldStatus, Integer newStatus) {
         Long activityId = activity.getId();
 
-        if (Objects.equals(oldStatus, SeckillConstant.SECKILL_STATUS_NOT_STARTED) && Objects.equals(newStatus, SeckillConstant.SECKILL_STATUS_ON_GOING)) {
+        if (Objects.equals(oldStatus, SeckillConstant.SECKILL_ACTIVITY_NOT_STARTED) && Objects.equals(newStatus, SeckillConstant.SECKILL_ACTIVITY_ON_GOING)) {
             initRedisCache(activity);
             log.info("秒杀活动[{}]开始，已初始化Redis库存: {}", activityId, activity.getAvailableStock());
-        } else if (Objects.equals(oldStatus, SeckillConstant.SECKILL_STATUS_ON_GOING) && Objects.equals(newStatus, SeckillConstant.SECKILL_STATUS_ENDED)) {
+        } else if (Objects.equals(oldStatus, SeckillConstant.SECKILL_ACTIVITY_ON_GOING) && Objects.equals(newStatus, SeckillConstant.SECKILL_ACTIVITY_ENDED)) {
             syncAndClearCache(activity);
             log.info("秒杀活动[{}]结束，已同步库存并清理缓存", activityId);
         }

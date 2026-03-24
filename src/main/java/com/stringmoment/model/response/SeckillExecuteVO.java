@@ -30,9 +30,15 @@ public class SeckillExecuteVO {
      * 订单号（业务唯一标识）
      */
     private String orderNo;
-    
+
     /**
-     * 秒杀状态：0-秒杀成功，1-库存不足，2-重复秒杀，3-活动未开始，4-活动已结束
+     * 秒杀执行结果状态
+     * 参考常量：SeckillConstant.EXECUTE_xxx
+     * 0-秒杀成功
+     * 1-库存不足
+     * 2-重复秒杀
+     * 3-活动未开始
+     * 4-活动已结束
      */
     private Integer status;
     
