@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stringmoment.common.constant.OrderConstant;
+import com.stringmoment.common.constant.ProductConstant;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.common.util.OrderNoGenerator;
 import com.stringmoment.entity.Order;
@@ -87,7 +89,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             Integer totalQuantity = entry.getValue();
             Product product = productMap.get(productId);
 
-            if (product.getStatus() == 0) {
+            if (Objects.equals(product.getStatus(), ProductConstant.PRODUCT_STATUS_OFF)) {
                 throw new BusinessException("商品已下架: " + product.getName());
             }
             if (product.getStock() < totalQuantity) {
@@ -115,7 +117,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 .orderNo(orderNo)
                 .totalAmount(totalAmount)
                 .payAmount(totalAmount)
-                .orderType(1)
+                .orderType(OrderConstant.ORDER_TYPE_NORMAL)
                 .addressId(dto.getAddressId())
                 .receiverName(address.getReceiverName())
                 .receiverPhone(address.getReceiverPhone())
@@ -123,7 +125,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 .receiverCity(address.getCity())
                 .receiverDistrict(address.getDistrict())
                 .receiverDetailAddress(address.getDetailAddress())
-                .status(0)
+                .status(OrderConstant.ORDER_STATUS_PENDING_PAY)
                 .build();
 
         save(order);
@@ -284,17 +286,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (order == null) {
             throw new BusinessException("订单不存在");
         }
-        if (order.getStatus() != 0) {
+        if (!Objects.equals(order.getStatus(), OrderConstant.ORDER_STATUS_PENDING_PAY)) {
             throw new BusinessException("当前状态无法取消订单");
         }
 
         // 2. 软删除订单
         boolean success = lambdaUpdate()
-                .set(Order::getStatus, 4)
+                .set(Order::getStatus, OrderConstant.ORDER_STATUS_CANCELED)
                 .set(Order::getCloseTime, LocalDateTime.now())
                 .eq(Order::getId, id)
                 .eq(Order::getUserId, userId)
-                .eq(Order::getStatus, 0)
+                .eq(Order::getStatus, OrderConstant.ORDER_STATUS_PENDING_PAY)
                 .update();
 
         if (!success) {
@@ -346,17 +348,17 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (order == null) {
             throw new BusinessException("订单不存在");
         }
-        if (order.getStatus() != 0) {
+        if (!Objects.equals(order.getStatus(), OrderConstant.ORDER_STATUS_PENDING_PAY)) {
             throw new BusinessException("当前状态无法支付订单");
         }
 
         // 2. 更新订单状态
         boolean success = lambdaUpdate()
-                .set(Order::getStatus, 1)
+                .set(Order::getStatus, OrderConstant.ORDER_STATUS_PAID)
                 .set(Order::getPaymentTime, LocalDateTime.now())
                 .eq(Order::getId, id)
                 .eq(Order::getUserId, userId)
-                .eq(Order::getStatus, 0)
+                .eq(Order::getStatus, OrderConstant.ORDER_STATUS_PENDING_PAY)
                 .update();
 
         if (!success) {

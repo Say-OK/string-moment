@@ -63,7 +63,7 @@ public class SeckillActivity implements Serializable {
      * 状态：0-未开始，1-进行中，2-已结束
      */
     @TableField(value = "status")
-    private Integer status = 0;
+    private Integer status;
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;

@@ -53,7 +53,7 @@ public class Product implements Serializable {
      * 总库存
      */
     @TableField(value = "stock")
-    private Integer stock = 0;
+    private Integer stock;
     
     /**
      * 商品主图URL
@@ -65,13 +65,13 @@ public class Product implements Serializable {
      * 状态：0-下架，1-上架
      */
     @TableField(value = "status")
-    private Integer status = 1;
+    private Integer status;
     
     /**
      * 销量统计
      */
     @TableField(value = "sale_count")
-    private Integer saleCount = 0;
+    private Integer saleCount;
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;

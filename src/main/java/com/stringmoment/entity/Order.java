@@ -48,13 +48,13 @@ public class Order implements Serializable {
      * 实付金额
      */
     @TableField(value = "pay_amount")
-    private BigDecimal payAmount = BigDecimal.ZERO;
+    private BigDecimal payAmount;
     
     /**
      * 订单类型：1-普通订单，2-秒杀订单
      */
     @TableField(value = "order_type")
-    private Integer orderType = 1;
+    private Integer orderType;
     
     /**
      * 秒杀活动ID，仅秒杀订单有值
@@ -93,7 +93,7 @@ public class Order implements Serializable {
      * 状态：0-待支付，1-已支付，2-已发货，3-已完成，4-已取消
      */
     @TableField(value = "status")
-    private Integer status = 0;
+    private Integer status;
     
     /**
      * 支付时间

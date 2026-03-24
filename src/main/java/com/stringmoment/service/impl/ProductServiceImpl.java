@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stringmoment.common.constant.ProductConstant;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.entity.Product;
 import com.stringmoment.mapper.ProductMapper;
@@ -24,7 +25,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     public ProductPageVO getProductList(ProductListQueryDTO dto) {
        // 1. 创建查询对象
         LambdaQueryChainWrapper<Product> query = lambdaQuery();
-        query.eq(Product::getStatus, 1);
+        query.eq(Product::getStatus, ProductConstant.PRODUCT_STATUS_ON);
 
         // 2. 拼接动态条件
         if (StringUtils.hasText(dto.getCategory())) {
@@ -67,7 +68,7 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     public ProductVO getProductDetail(Long id) {
         Product product = lambdaQuery()
                 .eq(Product::getId, id)
-                .eq(Product::getStatus, 1)
+                .eq(Product::getStatus, ProductConstant.PRODUCT_STATUS_ON)
                 .one();
 
         if (product == null) {
