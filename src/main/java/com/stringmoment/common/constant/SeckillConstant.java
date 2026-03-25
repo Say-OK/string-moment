@@ -29,7 +29,7 @@ public final class SeckillConstant {
     public static final Integer SECKILL_RESULT_REPEAT = 2;      // 重复秒杀
     public static final Integer SECKILL_RESULT_NOT_START = 3;   // 活动未开始
     public static final Integer SECKILL_RESULT_END = 4;         // 活动已结束
-    public static final Integer SECKILL_RESULT_UNKNOWN_ERROR  = 5;  // 未知错误
+    public static final Integer SECKILL_RESULT_ERROR = 5;       // 参数错误/未知错误
 
     // 秒杀超时时间
     public static final Integer SECKILL_PAY_TIMEOUT_MINUTES = 30;

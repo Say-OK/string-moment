@@ -39,6 +39,7 @@ public class SeckillExecuteVO {
      * 2-重复秒杀
      * 3-活动未开始
      * 4-活动已结束
+     * 5-参数错误/未知错误
      */
     private Integer status;
     

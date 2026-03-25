@@ -15,6 +15,7 @@
 -- 2: 重复秒杀（用户已购买过）
 -- 3: 活动未开始
 -- 4: 活动已结束
+-- 5: 未知错误
 
 local stockKey = KEYS[1]
 local userKey = KEYS[2]
@@ -42,8 +43,8 @@ if activityStatus ~= 1 then
         -- 状态2：活动已结束
         return 4
     else
-        -- 其他异常状态（如nil/-1/3）：统一返回“已结束”
-        return 4
+        -- 其他异常状态（如nil/-1/3）
+        return 5
     end
 end
 
