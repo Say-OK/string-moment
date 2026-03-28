@@ -1,15 +1,16 @@
 package com.stringmoment.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stringmoment.common.constant.UserConstant;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.common.util.JwtUtil;
 import com.stringmoment.common.util.PasswordUtil;
+import com.stringmoment.entity.User;
+import com.stringmoment.mapper.UserMapper;
 import com.stringmoment.model.request.UserLoginDTO;
 import com.stringmoment.model.request.UserRegisterDTO;
 import com.stringmoment.model.response.LoginResultVO;
 import com.stringmoment.model.response.UserVO;
-import com.stringmoment.entity.User;
-import com.stringmoment.mapper.UserMapper;
 import com.stringmoment.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .password(passwordUtil.encode(dto.getPassword()))
                 .nickname(dto.getNickname())
                 .phone(dto.getPhone())
+                .avatar(UserConstant.DEFAULT_AVATAR)
+                .status(UserConstant.USER_STATUS_NORMAL)
                 .build();
 
         // 4. 保存到数据库
@@ -69,7 +72,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 1. 查询用户（状态正常）
         User user = lambdaQuery()
                 .eq(User::getUsername, dto.getUsername())
-                .eq(User::getStatus, 1)
+                .eq(User::getStatus, UserConstant.USER_STATUS_NORMAL)
                 .one();
 
         // 2. 统一验证

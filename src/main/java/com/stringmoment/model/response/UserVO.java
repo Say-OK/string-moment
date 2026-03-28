@@ -1,5 +1,6 @@
 package com.stringmoment.model.response;
 
+import com.stringmoment.common.constant.UserConstant;
 import com.stringmoment.entity.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,7 +21,7 @@ public class UserVO {
     private String username;
     private String nickname;
     private String phone;
-    private String avatar = "/default-avatar.jpg";
+    private String avatar = UserConstant.DEFAULT_AVATAR;
     private Integer status;
     private String createTime;
     

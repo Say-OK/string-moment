@@ -71,7 +71,7 @@ public class UserAddress implements Serializable {
      * 是否默认地址：0-否，1-是
      */
     @TableField(value = "is_default")
-    private Integer isDefault = 0;
+    private Integer isDefault;
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;

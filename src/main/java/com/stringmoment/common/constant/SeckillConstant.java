@@ -33,4 +33,7 @@ public final class SeckillConstant {
 
     // 秒杀超时时间
     public static final Integer SECKILL_PAY_TIMEOUT_MINUTES = 30;
+
+    // 秒杀 Lua 脚本路径
+    public static final String SECKILL_LUA_PATH = "lua/seckill.lua";
 }

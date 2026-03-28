@@ -27,9 +27,9 @@ public class User implements Serializable {
 
     /**
      * 主键ID
-     * @TableId 表示这是主键
+     * `@TableId` 标记该字段为主键
      * value = "id" 指定数据库字段名（如果字段名与属性名一致可省略）
-     * type = IdType.AUTO 表示自增主键
+     * type = IdType.AUTO 表示数据库自增
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
@@ -48,16 +48,15 @@ public class User implements Serializable {
     
     /**
      * 头像URL
-     * defaultValue 可以设置默认值
      */
     @TableField(value = "avatar")
-    private String avatar = "/default-avatar.jpg";
+    private String avatar;
     
     /**
      * 状态：0-禁用，1-正常
      */
     @TableField(value = "status")
-    private Integer status = 1;
+    private Integer status;
     
     /**
      * 注册时间

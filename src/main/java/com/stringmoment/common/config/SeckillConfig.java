@@ -1,5 +1,6 @@
 package com.stringmoment.common.config;
 
+import com.stringmoment.common.constant.SeckillConstant;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -25,7 +26,7 @@ public class SeckillConfig {
     @Bean
     public DefaultRedisScript<Long> seckillLuaScript() {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("lua/seckill.lua"));
+        script.setLocation(new ClassPathResource(SeckillConstant.SECKILL_LUA_PATH));
         script.setResultType(Long.class);
         return script;
     }

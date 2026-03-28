@@ -1,6 +1,7 @@
 package com.stringmoment.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stringmoment.common.constant.UserConstant;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.entity.UserAddress;
 import com.stringmoment.mapper.UserAddressMapper;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,16 +30,16 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
                 .eq(UserAddress::getUserId, userId)
                 .count();
 
-        if (addressCount >= 10) {
+        if (addressCount >= UserConstant.MAX_ADDRESS_COUNT) {
             throw new BusinessException("最多只能有10个收货地址");
         }
 
         // 2. 如果设置为默认地址，要先取消其他默认地址
-        if (dto.getIsDefault() == 1) {
+        if (Objects.equals(dto.getIsDefault(), UserConstant.ADDRESS_DEFAULT)) {
             lambdaUpdate()
-                    .set(UserAddress::getIsDefault, 0)
+                    .set(UserAddress::getIsDefault, UserConstant.ADDRESS_NOT_DEFAULT)
                     .eq(UserAddress::getUserId, userId)
-                    .eq(UserAddress::getIsDefault, 1)
+                    .eq(UserAddress::getIsDefault, UserConstant.ADDRESS_DEFAULT)
                     .update();
         }
 
@@ -50,7 +52,7 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
                 .city(dto.getCity())
                 .district(dto.getDistrict())
                 .detailAddress(dto.getDetailAddress())
-                .isDefault(dto.getIsDefault() != null ? dto.getIsDefault() : 0)
+                .isDefault(dto.getIsDefault() != null ? dto.getIsDefault() : UserConstant.ADDRESS_NOT_DEFAULT)
                 .build();
 
         // 4. 保存到数据库
@@ -95,20 +97,20 @@ public class UserAddressServiceImpl extends ServiceImpl<UserAddressMapper, UserA
         }
 
         // 3. 状态检查：如果已经是默认地址，直接返回
-        if (address.getIsDefault() == 1) {
+        if (Objects.equals(address.getIsDefault(), UserConstant.ADDRESS_DEFAULT)) {
             return AddressVO.fromEntity(address);
         }
 
         // 4. 取消其他默认地址
         lambdaUpdate()
-                .set(UserAddress::getIsDefault, 0)
+                .set(UserAddress::getIsDefault, UserConstant.ADDRESS_NOT_DEFAULT)
                 .set(UserAddress::getUpdateTime, LocalDateTime.now())  // 条件更新自动注入不生效
                 .eq(UserAddress::getUserId, userId)
-                .eq(UserAddress::getIsDefault, 1)
+                .eq(UserAddress::getIsDefault, UserConstant.ADDRESS_DEFAULT)
                 .update();
 
         // 5. 设置当前地址为默认
-        address.setIsDefault(1);
+        address.setIsDefault(UserConstant.ADDRESS_DEFAULT);
         updateById(address);
 
         // 6. 返回更新后的地址
