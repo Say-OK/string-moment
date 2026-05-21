@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/product")
 @Validated
@@ -37,5 +39,14 @@ public class ProductController {
     public Result<ProductVO> getProductDetail(@PathVariable Long id) {
         ProductVO productVO = productService.getProductDetail(id);
         return Result.success(productVO);
+    }
+
+    /**
+     * 获取商品分类列表
+     */
+    @GetMapping("/categories")
+    public Result<List<String>> getCategoryList() {
+        List<String> categories = productService.getCategoryList();
+        return Result.success(categories);
     }
 }

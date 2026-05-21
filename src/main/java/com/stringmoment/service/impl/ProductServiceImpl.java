@@ -1,5 +1,6 @@
 package com.stringmoment.service.impl;
 
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -12,11 +13,20 @@ import com.stringmoment.model.request.ProductListQueryDTO;
 import com.stringmoment.model.response.ProductPageVO;
 import com.stringmoment.model.response.ProductVO;
 import com.stringmoment.service.ProductService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 @Service
 public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> implements ProductService {
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     /**
      * 获取商品列表
@@ -76,5 +86,37 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
         }
 
         return ProductVO.fromEntity(product);
+    }
+
+    /**
+     * 获取所有商品分类列表
+     */
+    @Override
+    public List<String> getCategoryList() {
+        String cacheKey = ProductConstant.PRODUCT_CATEGORY_CACHE_KEY;
+        String cacheValue = stringRedisTemplate.opsForValue().get(cacheKey);
+
+        if (StringUtils.hasText(cacheValue)) {
+            return JSONUtil.toList(cacheValue, String.class);
+        }
+
+        List<String> categories = lambdaQuery()
+                .select(Product::getCategory)
+                .eq(Product::getStatus, ProductConstant.PRODUCT_STATUS_ON)
+                .groupBy(Product::getCategory)
+                .list()
+                .stream()
+                .map(Product::getCategory)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toList());
+
+        stringRedisTemplate.opsForValue().set(
+                cacheKey,
+                JSONUtil.toJsonStr(categories),
+                ProductConstant.PRODUCT_CATEGORY_CACHE_TTL,
+                TimeUnit.SECONDS
+        );
+
+        return categories;
     }
 }

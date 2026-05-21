@@ -7,6 +7,8 @@ import com.stringmoment.model.response.ProductPageVO;
 import com.stringmoment.model.response.ProductVO;
 import jakarta.validation.Valid;
 
+import java.util.List;
+
 /**
  * 商品服务接口
  */
@@ -21,4 +23,9 @@ public interface ProductService extends IService<Product> {
      * 获取商品详情
      */
     ProductVO getProductDetail(Long id);
+
+    /**
+     * 获取所有商品分类列表
+     */
+    List<String> getCategoryList();
 }
