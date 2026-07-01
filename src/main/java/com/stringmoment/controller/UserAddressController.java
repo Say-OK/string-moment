@@ -2,6 +2,7 @@ package com.stringmoment.controller;
 
 import com.stringmoment.common.result.Result;
 import com.stringmoment.model.request.AddressAddDTO;
+import com.stringmoment.model.request.AddressUpdateDTO;
 import com.stringmoment.model.response.AddressVO;
 import com.stringmoment.service.UserAddressService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,6 +32,26 @@ public class UserAddressController {
         Long userId = (Long) request.getAttribute("userId");
         AddressVO addressVO = userAddressService.addAddress(userId, dto);
         return Result.success("地址添加成功", addressVO);
+    }
+
+    /**
+     * 更新收货地址
+     */
+    @PutMapping("/update")
+    public Result<AddressVO> updateAddress(@RequestBody @Valid AddressUpdateDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        AddressVO addressVO = userAddressService.updateAddress(userId, dto);
+        return Result.success("地址更新成功", addressVO);
+    }
+
+    /**
+     * 删除收货地址
+     */
+    @DeleteMapping("/delete/{id}")
+    public Result<Void> deleteAddress(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        userAddressService.deleteAddress(id, userId);
+        return Result.success("地址删除成功");
     }
 
     /**

@@ -4,6 +4,7 @@ package com.stringmoment.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.stringmoment.entity.UserAddress;
 import com.stringmoment.model.request.AddressAddDTO;
+import com.stringmoment.model.request.AddressUpdateDTO;
 import com.stringmoment.model.response.AddressVO;
 import jakarta.validation.Valid;
 
@@ -18,6 +19,16 @@ public interface UserAddressService extends IService<UserAddress> {
      * 添加收货地址
      */
     AddressVO addAddress(Long userId, @Valid AddressAddDTO dto);
+
+    /**
+     * 更新收货地址
+     */
+    AddressVO updateAddress(Long userId, @Valid AddressUpdateDTO dto);
+
+    /**
+     * 删除收货地址
+     */
+    void deleteAddress(Long id, Long userId);
 
     /**
      * 获取地址列表

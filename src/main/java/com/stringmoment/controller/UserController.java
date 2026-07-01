@@ -1,12 +1,13 @@
 package com.stringmoment.controller;
 
 import com.stringmoment.common.result.Result;
+import com.stringmoment.model.request.PasswordUpdateDTO;
 import com.stringmoment.model.request.UserLoginDTO;
 import com.stringmoment.model.request.UserRegisterDTO;
+import com.stringmoment.model.request.UserUpdateDTO;
 import com.stringmoment.model.response.LoginResultVO;
 import com.stringmoment.model.response.UserVO;
 import com.stringmoment.service.UserService;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,26 @@ public class UserController {
         Long userId = (Long) request.getAttribute("userId");
         UserVO userVO = userService.getUserInfo(userId);
         return Result.success(userVO);
+    }
+
+    /**
+     * 更新用户信息（需要Token）
+     */
+    @PutMapping("/update")
+    public Result<UserVO> updateUserInfo(@Valid @RequestBody UserUpdateDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        UserVO userVO = userService.updateUserInfo(userId, dto);
+        return Result.success("用户信息更新成功", userVO);
+    }
+
+    /**
+     * 修改密码（需要Token）
+     */
+    @PutMapping("/password")
+    public Result<Void> updatePassword(@Valid @RequestBody PasswordUpdateDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        userService.updatePassword(userId, dto);
+        return Result.success("密码修改成功");
     }
 
 }

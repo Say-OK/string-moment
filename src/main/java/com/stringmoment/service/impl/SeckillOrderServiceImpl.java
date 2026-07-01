@@ -53,7 +53,7 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
     private OrderNoGenerator orderNoGenerator;
 
     /**
-     * 检查用户秒杀资格（前端展示用）
+     * 检查用户秒杀资格
      */
     @Override
     public Integer checkSeckillQualification(Long activityId, Long userId) {

@@ -1,11 +1,13 @@
 package com.stringmoment.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.stringmoment.entity.User;
+import com.stringmoment.model.request.PasswordUpdateDTO;
 import com.stringmoment.model.request.UserLoginDTO;
 import com.stringmoment.model.request.UserRegisterDTO;
+import com.stringmoment.model.request.UserUpdateDTO;
 import com.stringmoment.model.response.LoginResultVO;
 import com.stringmoment.model.response.UserVO;
-import com.stringmoment.entity.User;
 import jakarta.validation.Valid;
 
 
@@ -25,9 +27,18 @@ public interface UserService extends IService<User> {
      */
     LoginResultVO login(@Valid UserLoginDTO dto);
 
-
     /**
      * 获取当前用户信息
      */
     UserVO getUserInfo(Long userId);
+
+    /**
+     * 更新用户信息
+     */
+    UserVO updateUserInfo(Long userId, @Valid UserUpdateDTO dto);
+
+    /**
+     * 修改密码
+     */
+    void updatePassword(Long userId, @Valid PasswordUpdateDTO dto);
 }

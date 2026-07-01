@@ -7,14 +7,17 @@ import com.stringmoment.common.util.JwtUtil;
 import com.stringmoment.common.util.PasswordUtil;
 import com.stringmoment.entity.User;
 import com.stringmoment.mapper.UserMapper;
+import com.stringmoment.model.request.PasswordUpdateDTO;
 import com.stringmoment.model.request.UserLoginDTO;
 import com.stringmoment.model.request.UserRegisterDTO;
+import com.stringmoment.model.request.UserUpdateDTO;
 import com.stringmoment.model.response.LoginResultVO;
 import com.stringmoment.model.response.UserVO;
 import com.stringmoment.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service  // 这个注解告诉Spring这是一个Service组件
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
@@ -100,6 +103,82 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException("用户不存在");
         }
         return UserVO.fromEntity(user);
+    }
+
+    /**
+     * 更新用户信息
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserVO updateUserInfo(Long userId, UserUpdateDTO dto) {
+        // 1. 查询用户
+        User user = getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 2. 检查用户状态
+        if (!user.getStatus().equals(UserConstant.USER_STATUS_NORMAL)) {
+            throw new BusinessException("用户已被禁用，无法修改信息");
+        }
+
+        // 3. 如果修改了手机号，需要检查手机号是否已被其他用户使用
+        if (StringUtils.hasText(dto.getPhone()) && !dto.getPhone().equals(user.getPhone())) {
+            boolean phoneExists = lambdaQuery()
+                    .eq(User::getPhone, dto.getPhone())
+                    .ne(User::getId, userId)
+                    .exists();
+            if (phoneExists) {
+                throw new BusinessException("手机号已被其他用户使用");
+            }
+            user.setPhone(dto.getPhone());
+        }
+
+        // 4. 更新其他字段（只更新非空字段）
+        if (StringUtils.hasText(dto.getNickname())) {
+            user.setNickname(dto.getNickname());
+        }
+        if (StringUtils.hasText(dto.getAvatar())) {
+            user.setAvatar(dto.getAvatar());
+        }
+
+        // 5. 保存更新
+        updateById(user);
+
+        // 6. 返回更新后的用户信息
+        return UserVO.fromEntity(user);
+    }
+
+    /**
+     * 修改密码
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updatePassword(Long userId, PasswordUpdateDTO dto) {
+        // 1. 查询用户
+        User user = getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 2. 检查用户状态
+        if (!user.getStatus().equals(UserConstant.USER_STATUS_NORMAL)) {
+            throw new BusinessException("用户已被禁用，无法修改密码");
+        }
+
+        // 3. 验证旧密码
+        if (!passwordUtil.matches(dto.getOldPassword(), user.getPassword())) {
+            throw new BusinessException("旧密码不正确");
+        }
+
+        // 4. 检查新密码不能与旧密码相同
+        if (passwordUtil.matches(dto.getNewPassword(), user.getPassword())) {
+            throw new BusinessException("新密码不能与旧密码相同");
+        }
+
+        // 5. 更新密码
+        user.setPassword(passwordUtil.encode(dto.getNewPassword()));
+        updateById(user);
     }
 
 }
