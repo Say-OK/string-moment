@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 商品Controller（用户端）
+ */
 @RestController
 @RequestMapping("/product")
 @Validated
@@ -24,7 +27,7 @@ public class ProductController {
     private ProductService productService;
 
     /**
-     * 获取商品列表
+     * 获取商品列表（用户查询）
      */
     @GetMapping("/list")
     public Result<ProductPageVO> getProductList(@Valid ProductListQueryDTO dto) {
@@ -33,7 +36,7 @@ public class ProductController {
     }
 
     /**
-     * 获取商品详情
+     * 获取商品详情（用户查询）
      */
     @GetMapping("/detail/{id}")
     public Result<ProductVO> getProductDetail(@PathVariable Long id) {
@@ -42,7 +45,7 @@ public class ProductController {
     }
 
     /**
-     * 获取商品分类列表
+     * 获取商品分类列表（用户查询）
      */
     @GetMapping("/categories")
     public Result<List<String>> getCategoryList() {

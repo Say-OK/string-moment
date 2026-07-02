@@ -10,14 +10,14 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
 /**
- * 商品列表查询参数（用户端）
- * 注意：用户端只能查询上架商品，不支持状态筛选
+ * 管理员商品列表查询参数
+ * 管理员可以查询所有商品（上架+下架），并可以按状态筛选
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProductListQueryDTO {
+public class AdminProductListQueryDTO {
 
     @Min(value = 1, message = "页码必须大于0")
     private Integer page = 1;      // 当前页码，默认1
@@ -28,6 +28,14 @@ public class ProductListQueryDTO {
 
     private String category;       // 商品分类
     private String keyword;        // 搜索关键词
+
+    /**
+     * 商品状态筛选（管理员特有）
+     * null: 查询所有商品（上架+下架）
+     * 0: 只查询下架商品
+     * 1: 只查询上架商品
+     */
+    private Integer status;        // 状态筛选（可选）
 
     /**
      * 价格区间筛选

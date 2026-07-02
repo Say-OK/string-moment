@@ -10,10 +10,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-    
+
     @Autowired
     private JwtInterceptor jwtInterceptor;
-    
+
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(jwtInterceptor)
@@ -26,9 +26,10 @@ public class WebConfig implements WebMvcConfigurer {
                         "/user/register",     // 注册
                         "/user/login",        // 登录
 
-                        // 商品模块公开接口
+                        // 商品模块公开接口（用户端）
                         "/product/list",      // 商品列表
-                        "/product/detail/*", // 商品详情
+                        "/product/detail/*",  // 商品详情
+                        "/product/categories", // 商品分类列表
 
                         // 秒杀模块公开接口
                         "/seckill/activity/list",     // 秒杀活动列表
