@@ -13,4 +13,7 @@ public final class OrderConstant {
     // 订单类型
     public static final Integer ORDER_TYPE_NORMAL = 1;           // 普通订单
     public static final Integer ORDER_TYPE_SECKILL = 2;         // 秒杀订单
+
+    // 订单自动关闭超时时长（单位：分钟）
+    public static final int ORDER_PAY_TIMEOUT_MINUTES = 30;
 }

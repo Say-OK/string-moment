@@ -31,8 +31,8 @@ public final class SeckillConstant {
     public static final Integer SECKILL_RESULT_END = 4;         // 活动已结束
     public static final Integer SECKILL_RESULT_ERROR = 5;       // 参数错误/未知错误
 
-    // 秒杀超时时间
-    public static final Integer SECKILL_PAY_TIMEOUT_MINUTES = 30;
+    // 秒杀下单支付超时时长（单位：分钟）
+    public static final int SECKILL_PAY_TIMEOUT_MINUTES = 15;
 
     // 秒杀 Lua 脚本路径
     public static final String SECKILL_LUA_PATH = "lua/seckill.lua";

@@ -2,10 +2,8 @@ package com.stringmoment.controller;
 
 import com.stringmoment.common.result.Result;
 import com.stringmoment.model.request.*;
-import com.stringmoment.model.response.ProductPageVO;
-import com.stringmoment.model.response.ProductVO;
-import com.stringmoment.model.response.SeckillActivityPageVO;
-import com.stringmoment.model.response.SeckillActivityVO;
+import com.stringmoment.model.response.*;
+import com.stringmoment.service.OrderService;
 import com.stringmoment.service.ProductService;
 import com.stringmoment.service.SeckillActivityService;
 import jakarta.validation.Valid;
@@ -29,6 +27,9 @@ public class AdminController {
 
     @Autowired
     private SeckillActivityService seckillActivityService;
+
+    @Autowired
+    private OrderService orderService;
 
     // ==================== 商品查询（管理员端） ====================
 
@@ -153,5 +154,34 @@ public class AdminController {
     public Result<Void> deleteSeckillActivity(@PathVariable Long id) {
         seckillActivityService.deleteSeckillActivity(id);
         return Result.success("秒杀活动删除成功");
+    }
+
+    // ==================== 订单管理（管理员端） ====================
+
+    /**
+     * 获取后台订单列表（多条件筛选）
+     */
+    @GetMapping("/order/list")
+    public Result<OrderPageVO> getAdminOrderList(@Valid AdminOrderListQueryDTO dto) {
+        OrderPageVO orderPageVO = orderService.getAdminOrderList(dto);
+        return Result.success(orderPageVO);
+    }
+
+    /**
+     * 获取订单详情（管理员）
+     */
+    @GetMapping("/order/detail/{id}")
+    public Result<OrderVO> getOrderDetailAdmin(@PathVariable Long id) {
+        OrderVO orderVO = orderService.getOrderDetailAdmin(id);
+        return Result.success(orderVO);
+    }
+
+    /**
+     * 订单发货（管理员独有）
+     */
+    @PutMapping("/order/ship/{id}")
+    public Result<Void> shipOrder(@PathVariable Long id) {
+        orderService.shipOrder(id);
+        return Result.success("订单发货成功");
     }
 }

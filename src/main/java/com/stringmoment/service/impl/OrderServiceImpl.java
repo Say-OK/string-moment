@@ -9,17 +9,13 @@ import com.stringmoment.common.constant.OrderConstant;
 import com.stringmoment.common.constant.ProductConstant;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.common.util.OrderNoGenerator;
-import com.stringmoment.entity.Order;
-import com.stringmoment.entity.OrderItem;
-import com.stringmoment.entity.Product;
+import com.stringmoment.entity.*;
 import com.stringmoment.mapper.OrderMapper;
+import com.stringmoment.model.request.AdminOrderListQueryDTO;
 import com.stringmoment.model.request.OrderCreateDTO;
 import com.stringmoment.model.request.OrderListQueryDTO;
 import com.stringmoment.model.response.*;
-import com.stringmoment.service.OrderItemService;
-import com.stringmoment.service.OrderService;
-import com.stringmoment.service.ProductService;
-import com.stringmoment.service.UserAddressService;
+import com.stringmoment.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +39,12 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
     @Autowired
     private OrderNoGenerator orderNoGenerator;
+
+    @Autowired
+    private SeckillActivityService seckillActivityService;
+
+    @Autowired
+    private UserService userService;
 
     /**
      * 创建普通订单
@@ -213,26 +215,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                     .build();
         }
 
-        // 5. 批量查询订单商品项
-        Map<Long, List<OrderItem>> orderItemsMap = orderItemService.getOrderItemsByOrderIds(orderIds);
-
-        // 6. 组装订单简略信息列表
-        List<OrderSimpleVO> orderSimpleVOList = page.getRecords().stream()
-                .map(order -> {
-                    OrderSimpleVO vo = OrderSimpleVO.fromEntity(order);
-                    List<OrderItem> items = orderItemsMap.getOrDefault(order.getId(), Collections.emptyList());
-                    vo.setProductCount(items.size());
-
-                    if (!items.isEmpty()) {
-                        OrderItem firstItem = items.get(0);
-                        vo.setFirstProductName(firstItem.getProductName());
-                        vo.setFirstProductImage(firstItem.getProductImage());
-                        vo.setFirstProductQuantity(firstItem.getQuantity());
-                    }
-                    return vo;
-                })
-                .toList();
-
+        // 5. 组装订单简略信息列表
+        List<OrderSimpleVO> orderSimpleVOList = buildOrderSimpleVOList(page.getRecords());
 
         return OrderPageVO.builder()
                 .list(orderSimpleVOList)
@@ -303,7 +287,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
             throw new BusinessException("订单状态已发生变化，取消失败");
         }
 
-        // 3. 回滚商品库存、售出数量
+        // 3. 回滚商品库存、售出数量（区分普通订单和秒杀订单）
         List<OrderItem> items = orderItemService.lambdaQuery()
                 .eq(OrderItem::getOrderId, order.getId())
                 .list();
@@ -319,15 +303,30 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
                 throw new BusinessException("商品数量异常");
             }
 
-            LambdaUpdateWrapper<Product> wrapper = new LambdaUpdateWrapper<>();
-            wrapper.setSql("stock = stock + " + quantity)
-                    .setSql("sale_count = sale_count - " + quantity)
-                    .eq(Product::getId, productId)
-                    .ge(Product::getSaleCount, quantity);  // 防止销量为负
+            // 普通订单：返还商品库存和销量
+            if (Objects.equals(order.getOrderType(), OrderConstant.ORDER_TYPE_NORMAL)) {
+                LambdaUpdateWrapper<Product> wrapper = new LambdaUpdateWrapper<>();
+                wrapper.setSql("stock = stock + " + quantity)
+                        .setSql("sale_count = sale_count - " + quantity)
+                        .eq(Product::getId, productId)
+                        .ge(Product::getSaleCount, quantity);
 
-            boolean update = productService.update(wrapper);
-            if (!update) {
-                throw new BusinessException("商品库存回滚失败");
+                boolean update = productService.update(wrapper);
+                if (!update) {
+                    throw new BusinessException("商品库存回滚失败");
+                }
+            }
+            // 秒杀订单：返还秒杀活动库存
+            else if (Objects.equals(order.getOrderType(), OrderConstant.ORDER_TYPE_SECKILL)) {
+                if (order.getSeckillActivityId() != null) {
+                    boolean update = seckillActivityService.lambdaUpdate()
+                            .eq(SeckillActivity::getId, order.getSeckillActivityId())
+                            .setSql("available_stock = available_stock + " + quantity)
+                            .update();
+                    if (!update) {
+                        throw new BusinessException("秒杀活动库存回滚失败");
+                    }
+                }
             }
         }
     }
@@ -337,7 +336,6 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
      * 注意：当前为模拟支付
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void payOrder(Long id, Long userId) {
         // 1. 检查权限、订单状态
         Order order = lambdaQuery()
@@ -364,5 +362,205 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
         if (!success) {
             throw new BusinessException("支付订单失败");
         }
+    }
+
+    /**
+     * 确认收货
+     */
+    @Override
+    public void confirmOrder(Long id, Long userId) {
+        // 1. 检查权限、订单状态
+        Order order = lambdaQuery()
+                .eq(Order::getId, id)
+                .eq(Order::getUserId, userId)
+                .one();
+
+        if (order == null) {
+            throw new BusinessException("订单不存在");
+        }
+        if (!Objects.equals(order.getStatus(), OrderConstant.ORDER_STATUS_SHIPPED)) {
+            throw new BusinessException("当前状态无法确认收货");
+        }
+
+        // 2. 更新订单状态为已完成
+        boolean success = lambdaUpdate()
+                .set(Order::getStatus, OrderConstant.ORDER_STATUS_COMPLETED)
+                .set(Order::getReceiveTime, LocalDateTime.now())
+                .eq(Order::getId, id)
+                .eq(Order::getUserId, userId)
+                .eq(Order::getStatus, OrderConstant.ORDER_STATUS_SHIPPED)
+                .update();
+
+        if (!success) {
+            throw new BusinessException("确认收货失败");
+        }
+    }
+
+    /**
+     * 发货（管理员）
+     */
+    @Override
+    public void shipOrder(Long id) {
+        // 1. 检查订单状态
+        Order order = lambdaQuery()
+                .eq(Order::getId, id)
+                .one();
+
+        if (order == null) {
+            throw new BusinessException("订单不存在");
+        }
+        if (!Objects.equals(order.getStatus(), OrderConstant.ORDER_STATUS_PAID)) {
+            throw new BusinessException("当前状态无法发货");
+        }
+
+        // 2. 更新订单状态为已发货
+        boolean success = lambdaUpdate()
+                .set(Order::getStatus, OrderConstant.ORDER_STATUS_SHIPPED)
+                .set(Order::getDeliveryTime, LocalDateTime.now())
+                .eq(Order::getId, id)
+                .eq(Order::getStatus, OrderConstant.ORDER_STATUS_PAID)
+                .update();
+
+        if (!success) {
+            throw new BusinessException("发货失败");
+        }
+    }
+
+    /**
+     * 获取后台订单列表（管理员：多条件筛选）
+     */
+    @Override
+    public OrderPageVO getAdminOrderList(AdminOrderListQueryDTO dto) {
+        LambdaQueryChainWrapper<Order> query = lambdaQuery();
+
+        // 订单类型筛选（0表示全部）
+        if (dto.getOrderType() != null && dto.getOrderType() != 0) {
+            query.eq(Order::getOrderType, dto.getOrderType());
+        }
+
+        // 订单状态筛选（0表示全部）
+        if (dto.getStatus() != null && dto.getStatus() != 0) {
+            query.eq(Order::getStatus, dto.getStatus());
+        }
+
+        // 用户ID精准查询
+        if (dto.getUserId() != null) {
+            query.eq(Order::getUserId, dto.getUserId());
+        }
+
+        // 手机号查询（需要关联用户表）
+        if (dto.getPhone() != null && !dto.getPhone().isEmpty()) {
+            List<Long> userIds = userService.lambdaQuery()
+                    .select(User::getId)
+                    .eq(User::getPhone, dto.getPhone())
+                    .list()
+                    .stream()
+                    .map(User::getId)
+                    .toList();
+            if (!userIds.isEmpty()) {
+                query.in(Order::getUserId, userIds);
+            } else {
+                return OrderPageVO.builder()
+                        .list(Collections.emptyList())
+                        .total(0L)
+                        .page(dto.getPage())
+                        .size(dto.getSize())
+                        .pages(0)
+                        .build();
+            }
+        }
+
+        // 订单号模糊搜索
+        if (dto.getOrderNo() != null && !dto.getOrderNo().isEmpty()) {
+            query.like(Order::getOrderNo, dto.getOrderNo());
+        }
+
+        // 创建时间区间筛选
+        if (dto.getStartTime() != null) {
+            query.ge(Order::getCreateTime, dto.getStartTime());
+        }
+        if (dto.getEndTime() != null) {
+            query.le(Order::getCreateTime, dto.getEndTime());
+        }
+
+        // 按创建时间倒序
+        query.orderByDesc(Order::getCreateTime);
+
+        // 分页查询
+        IPage<Order> page = query.page(new Page<>(
+                Math.max(dto.getPage(), 1),
+                Math.max(Math.min(dto.getSize(), 100), 1)
+        ));
+
+        // 处理空订单情况
+        List<Long> orderIds = page.getRecords().stream()
+                .map(Order::getId)
+                .toList();
+
+        if (orderIds.isEmpty()) {
+            return OrderPageVO.builder()
+                    .list(Collections.emptyList())
+                    .total(page.getTotal())
+                    .page((int) page.getCurrent())
+                    .size((int) page.getSize())
+                    .pages((int) page.getPages())
+                    .build();
+        }
+
+        // 组装订单简略信息列表
+        List<OrderSimpleVO> orderSimpleVOList = buildOrderSimpleVOList(page.getRecords());
+
+        return OrderPageVO.builder()
+                .list(orderSimpleVOList)
+                .total(page.getTotal())
+                .page((int) page.getCurrent())
+                .size((int) page.getSize())
+                .pages((int) page.getPages())
+                .build();
+    }
+
+    /**
+     * 获取订单详情（管理员：不校验用户权限）
+     */
+    @Override
+    public OrderVO getOrderDetailAdmin(Long id) {
+        Order order = getById(id);
+        if (order == null) {
+            throw new BusinessException("订单不存在");
+        }
+
+        List<OrderItem> itemList = orderItemService.lambdaQuery()
+                .eq(OrderItem::getOrderId, order.getId())
+                .list();
+
+        List<OrderItemVO> itemVOList = itemList.stream().map(OrderItemVO::fromEntity).toList();
+
+        OrderVO orderVO = OrderVO.fromEntity(order);
+        orderVO.setItems(itemVOList);
+        return orderVO;
+    }
+
+    private List<OrderSimpleVO> buildOrderSimpleVOList(List<Order> orders) {
+        List<Long> orderIds = orders.stream()
+                .map(Order::getId)
+                .toList();
+
+        Map<Long, List<OrderItem>> orderItemsMap = orderItemService.getOrderItemsByOrderIds(orderIds);
+
+        return orders.stream()
+                .map(order -> {
+                    OrderSimpleVO vo = OrderSimpleVO.fromEntity(order);
+                    List<OrderItem> items = orderItemsMap.getOrDefault(order.getId(), Collections.emptyList());
+                    vo.setProductCount(items.size());
+
+                    if (!items.isEmpty()) {
+                        OrderItem firstItem = items.get(0);
+                        vo.setFirstProductName(firstItem.getProductName());
+                        vo.setFirstProductImage(firstItem.getProductImage());
+                        vo.setFirstProductQuantity(firstItem.getQuantity());
+                    }
+                    return vo;
+                })
+                .toList();
     }
 }

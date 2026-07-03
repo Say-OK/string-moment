@@ -72,4 +72,14 @@ public class OrderController {
         orderService.payOrder(id, userId);
         return Result.success("订单支付成功");
     }
+
+    /**
+     * 确认收货
+     */
+    @PostMapping("/confirm/{id}")
+    public Result<Void> confirmOrder(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        orderService.confirmOrder(id, userId);
+        return Result.success("确认收货成功");
+    }
 }
