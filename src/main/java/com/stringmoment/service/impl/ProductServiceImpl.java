@@ -33,14 +33,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     private StringRedisTemplate stringRedisTemplate;
 
     /**
-     * 清除商品分类缓存（清除用户和管理员缓存）
-     */
-    private void clearCategoryCache() {
-        stringRedisTemplate.delete(ProductConstant.PRODUCT_CATEGORY_CACHE_KEY);
-        stringRedisTemplate.delete(ProductConstant.PRODUCT_ALL_CATEGORY_CACHE_KEY);
-    }
-
-    /**
      * 获取商品列表
      */
     @Override
@@ -120,6 +112,15 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
      */
     @Override
     public ProductVO getProductDetail(Long id) {
+        // 1. 尝试从缓存获取
+        String cacheKey = ProductConstant.PRODUCT_DETAIL_CACHE_KEY_PREFIX + id;
+        String cacheValue = stringRedisTemplate.opsForValue().get(cacheKey);
+
+        if (StringUtils.hasText(cacheValue)) {
+            return JSONUtil.toBean(cacheValue, ProductVO.class);
+        }
+
+        // 2. 缓存不存在，查询数据库
         Product product = lambdaQuery()
                 .eq(Product::getId, id)
                 .eq(Product::getStatus, ProductConstant.PRODUCT_STATUS_ON)
@@ -129,7 +130,16 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
             throw new BusinessException("商品不存在");
         }
 
-        return ProductVO.fromEntity(product);
+        // 3. 转换为VO并缓存
+        ProductVO productVO = ProductVO.fromEntity(product);
+        stringRedisTemplate.opsForValue().set(
+                cacheKey,
+                JSONUtil.toJsonStr(productVO),
+                ProductConstant.PRODUCT_DETAIL_CACHE_TTL,
+                TimeUnit.SECONDS
+        );
+
+        return productVO;
     }
 
     /**
@@ -232,12 +242,15 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
         // 4. 保存更新
         updateById(product);
 
-        // 5. 只有分类变化且商品上架时才清除缓存
+        // 5. 清除商品详情缓存
+        clearProductDetailCache(id);
+
+        // 6. 只有分类变化且商品上架时才清除分类缓存
         if (isCategoryChanged && product.getStatus().equals(ProductConstant.PRODUCT_STATUS_ON)) {
             clearCategoryCache();
         }
 
-        // 6. 返回更新后的商品信息
+        // 7. 返回更新后的商品信息
         return ProductVO.fromEntity(product);
     }
 
@@ -256,7 +269,10 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
         // 2. 删除商品
         removeById(id);
 
-        // 3. 清除分类缓存
+        // 3. 清除商品详情缓存
+        clearProductDetailCache(id);
+
+        // 4. 清除分类缓存
         clearCategoryCache();
     }
 
@@ -292,7 +308,10 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
         product.setStatus(ProductConstant.PRODUCT_STATUS_ON);
         updateById(product);
 
-        // 6. 只有新分类上架时才清除缓存
+        // 6. 清除商品详情缓存
+        clearProductDetailCache(id);
+
+        // 7. 只有新分类上架时才清除分类缓存
         if (!categoryExists) {
             clearCategoryCache();
         }
@@ -326,7 +345,10 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
         product.setStatus(ProductConstant.PRODUCT_STATUS_OFF);
         updateById(product);
 
-        // 5. 只有分类下最后一个商品下架时才清除缓存
+        // 5. 清除商品详情缓存
+        clearProductDetailCache(id);
+
+        // 6. 只有分类下最后一个商品下架时才清除分类缓存
         if (!hasOtherProductsInCategory) {
             clearCategoryCache();
         }
@@ -447,5 +469,26 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
         );
 
         return categories;
+    }
+
+    // ==================== 缓存清除 ====================
+
+    /**
+     * 清除商品详情缓存
+     * @param productId 商品ID
+     */
+    private void clearProductDetailCache(Long productId) {
+        String cacheKey = ProductConstant.PRODUCT_DETAIL_CACHE_KEY_PREFIX + productId;
+        stringRedisTemplate.delete(cacheKey);
+    }
+
+    /**
+     * 清除商品分类缓存（用户和管理员）
+     */
+    private void clearCategoryCache() {
+        // 清除用户分类缓存
+        stringRedisTemplate.delete(ProductConstant.PRODUCT_CATEGORY_CACHE_KEY);
+        // 清除管理员分类缓存
+        stringRedisTemplate.delete(ProductConstant.PRODUCT_ALL_CATEGORY_CACHE_KEY);
     }
 }
