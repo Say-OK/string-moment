@@ -1,12 +1,13 @@
 package com.stringmoment.controller;
 
 import com.stringmoment.common.result.Result;
-import com.stringmoment.model.request.AdminProductListQueryDTO;
-import com.stringmoment.model.request.ProductAddDTO;
-import com.stringmoment.model.request.ProductUpdateDTO;
+import com.stringmoment.model.request.*;
 import com.stringmoment.model.response.ProductPageVO;
 import com.stringmoment.model.response.ProductVO;
+import com.stringmoment.model.response.SeckillActivityPageVO;
+import com.stringmoment.model.response.SeckillActivityVO;
 import com.stringmoment.service.ProductService;
+import com.stringmoment.service.SeckillActivityService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -25,6 +26,9 @@ public class AdminController {
 
     @Autowired
     private ProductService productService;
+
+    @Autowired
+    private SeckillActivityService seckillActivityService;
 
     // ==================== 商品查询（管理员端） ====================
 
@@ -100,5 +104,54 @@ public class AdminController {
     public Result<Void> offProduct(@PathVariable Long id) {
         productService.offProduct(id);
         return Result.success("商品下架成功");
+    }
+
+    // ==================== 秒杀活动查询（管理员端） ====================
+
+    /**
+     * 获取秒杀活动列表（管理员：查询所有活动，可按状态筛选）
+     */
+    @GetMapping("/seckill/list")
+    public Result<SeckillActivityPageVO> getAllSeckillActivityList(@Valid AdminSeckillActivityListQueryDTO dto) {
+        SeckillActivityPageVO pageVO = seckillActivityService.getAllSeckillActivityList(dto);
+        return Result.success(pageVO);
+    }
+
+    /**
+     * 获取秒杀活动详情（管理员：可以查看所有状态的活动）
+     */
+    @GetMapping("/seckill/detail/{id}")
+    public Result<SeckillActivityVO> getSeckillActivityDetailAdmin(@PathVariable Long id) {
+        SeckillActivityVO activityVO = seckillActivityService.getSeckillActivityDetailAdmin(id);
+        return Result.success(activityVO);
+    }
+
+    // ==================== 秒杀活动管理 ====================
+
+    /**
+     * 添加秒杀活动
+     */
+    @PostMapping("/seckill/add")
+    public Result<SeckillActivityVO> addSeckillActivity(@Valid @RequestBody SeckillActivityAddDTO dto) {
+        SeckillActivityVO activityVO = seckillActivityService.addSeckillActivity(dto);
+        return Result.success("秒杀活动创建成功", activityVO);
+    }
+
+    /**
+     * 更新秒杀活动信息
+     */
+    @PutMapping("/seckill/update/{id}")
+    public Result<SeckillActivityVO> updateSeckillActivity(@PathVariable Long id, @Valid @RequestBody SeckillActivityUpdateDTO dto) {
+        SeckillActivityVO activityVO = seckillActivityService.updateSeckillActivity(id, dto);
+        return Result.success("秒杀活动更新成功", activityVO);
+    }
+
+    /**
+     * 删除秒杀活动
+     */
+    @DeleteMapping("/seckill/delete/{id}")
+    public Result<Void> deleteSeckillActivity(@PathVariable Long id) {
+        seckillActivityService.deleteSeckillActivity(id);
+        return Result.success("秒杀活动删除成功");
     }
 }
