@@ -16,11 +16,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 
@@ -52,6 +53,9 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
     @Autowired
     private OrderNoGenerator orderNoGenerator;
 
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
     /**
      * 检查用户秒杀资格
      */
@@ -70,18 +74,40 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
             return SeckillConstant.QUALIFY_ACTIVITY_ENDED;
         }
 
-        // 3. 检查库存
-        if (activity.getAvailableStock() <= 0) {
+        // 3. 检查库存（优先Redis缓存）
+        String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX + activityId;
+        String stockStr = stringRedisTemplate.opsForValue().get(stockKey);
+        int stock;
+        if (stockStr != null) {
+            stock = Integer.parseInt(stockStr);
+        } else {
+            // Redis缓存不存在，从MySQL读取并回填Redis
+            stock = activity.getAvailableStock();
+            stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(stock));
+            log.warn("活动[{}]库存缓存丢失，从MySQL回填: {}", activityId, stock);
+        }
+        if (stock <= 0) {
             return SeckillConstant.QUALIFY_STOCK_LACK;
         }
 
-        // 4. 检查是否重复秒杀
-        boolean hasParticipated = lambdaQuery()
-                .eq(SeckillOrder::getSeckillActivityId, activityId)
-                .eq(SeckillOrder::getUserId, userId)
-                .exists();
-        if (hasParticipated) {
+        // 4. 检查是否重复秒杀（优先Redis Set）
+        String userKey = SeckillConstant.SECKILL_USER_KEY_PREFIX + activityId;
+        Boolean userExists = stringRedisTemplate.opsForSet().isMember(userKey, userId.toString());
+        if (Boolean.TRUE.equals(userExists)) {
             return SeckillConstant.QUALIFY_REPEAT_PURCHASE;
+        }
+        
+        // Redis Set不存在，查MySQL兜底并回填Redis
+        Boolean userKeyExists = stringRedisTemplate.hasKey(userKey);
+        if (!Boolean.TRUE.equals(userKeyExists)) {
+            // 复用rebuildUserSetFromDB方法重建用户Set缓存
+            rebuildUserSetFromDB(activityId, userKey);
+            
+            // 重建后再次检查用户是否已购买
+            Boolean userExistsAfterRebuild = stringRedisTemplate.opsForSet().isMember(userKey, userId.toString());
+            if (Boolean.TRUE.equals(userExistsAfterRebuild)) {
+                return SeckillConstant.QUALIFY_REPEAT_PURCHASE;
+            }
         }
 
         // 5. 校验通过，可以秒杀
@@ -89,10 +115,9 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
     }
 
     /**
-     * 执行秒杀
+     * 执行秒杀（Redis操作在事务外，MySQL操作在事务内）
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public SeckillExecuteVO executeSeckill(SeckillExecuteDTO dto, Long userId) {
         Long activityId = dto.getSeckillActivityId();
         Long addressId = dto.getAddressId();
@@ -113,46 +138,88 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
             return buildFailVO(SeckillConstant.SECKILL_RESULT_ERROR, "收货地址不存在");
         }
 
+        // 2. 确保Redis缓存存在
         ensureRedisCache(activity);
 
-        Long result = null;
+        // 3. 执行Lua脚本扣Redis库存
+        Long result = executeLuaScript(activityId, userId, activity);
+        if (result.intValue() != SeckillConstant.SECKILL_RESULT_SUCCESS) {
+            return handleLuaResult(result);
+        }
+
+        // 4. 执行MySQL事务：创建订单 + 扣减库存（使用编程式事务）
         try {
-            // 2. 执行Lua脚本扣Redis库存
-            result = executeLuaScript(activityId, userId, activity);
-            if (result.intValue() != SeckillConstant.SECKILL_RESULT_SUCCESS) {
-                return handleLuaResult(result);
-            }
+            return transactionTemplate.execute(status -> {
+                // 1. 创建订单
+                Order order = createOrder(userId, activity, product, address);
+                Long seckillOrderId = createSeckillOrder(userId, order.getId(), activity.getId(), activity.getSeckillPrice());
 
-            // 3. 创建订单
-            Order order = createOrder(userId, activity, product, address);
-            Long seckillOrderId = createSeckillOrder(userId, order.getId(), activityId, activity.getSeckillPrice());
+                // 2. 扣减MySQL库存
+                decreaseMySQLStock(activity.getId());
 
-            return buildSuccessVO(order, seckillOrderId, activity.getSeckillPrice(), product);
-
+                return buildSuccessVO(order, seckillOrderId, activity.getSeckillPrice(), product);
+            });
         } catch (Exception e) {
-            log.error("秒杀失败，开始回滚", e);
-            // 只有Lua扣Redis成功，才需要回滚Redis
-            if (result != null && result.intValue() == SeckillConstant.SECKILL_RESULT_SUCCESS) {
+            log.error("MySQL操作失败，同步回滚Redis，定时任务作为最终兜底校对库存", e);
+            // 加回Redis库存、删除用户标记
+            if (result.intValue() == SeckillConstant.SECKILL_RESULT_SUCCESS) {
                 String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX + activityId;
                 String userKey = SeckillConstant.SECKILL_USER_KEY_PREFIX + activityId;
-                stringRedisTemplate.opsForValue().increment(stockKey); // 库存回滚
-                stringRedisTemplate.opsForSet().remove(userKey, userId.toString()); // 用户记录回滚
+                stringRedisTemplate.opsForValue().increment(stockKey);
+                stringRedisTemplate.opsForSet().remove(userKey, userId.toString());
             }
-            // 重新抛异常，触发事务回滚（如果是创建订单失败，回滚MySQL；如果是Lua执行失败，MySQL没操作，回滚无影响）
             throw new BusinessException("秒杀失败：" + e.getMessage());
         }
     }
 
     /**
-     * 从数据库恢复缓存
+     * 从数据库恢复缓存（库存 + 用户购买记录）
      */
     private void ensureRedisCache(SeckillActivity activity) {
-        String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX + activity.getId();
-        Boolean stockExists = stringRedisTemplate.hasKey(stockKey);
+        Long activityId = activity.getId();
+        String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX + activityId;
+        String userKey = SeckillConstant.SECKILL_USER_KEY_PREFIX + activityId;
 
+        Boolean stockExists = stringRedisTemplate.hasKey(stockKey);
+        Boolean userExists = stringRedisTemplate.hasKey(userKey);
+
+        // 恢复库存缓存
         if (!Boolean.TRUE.equals(stockExists)) {
-            log.warn("活动[{}] Redis缓存丢失，仅恢复库存（用户Set需从MySQL订单表重建）: {}", activity.getId(), activity.getAvailableStock());
+            log.warn("活动[{}] Redis库存缓存丢失，从DB恢复: {}", activityId, activity.getAvailableStock());
             stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(activity.getAvailableStock()));
+        }
+
+        // 恢复用户购买记录缓存
+        if (!Boolean.TRUE.equals(userExists)) {
+            rebuildUserSetFromDB(activityId, userKey);
+        }
+    }
+
+    /**
+     * 从MySQL订单表重建用户购买记录缓存
+     */
+    private void rebuildUserSetFromDB(Long activityId, String userKey) {
+        // 查询已购买的用户ID列表
+        List<Long> userIds = lambdaQuery()
+                .select(SeckillOrder::getUserId)
+                .eq(SeckillOrder::getSeckillActivityId, activityId)
+                .list()
+                .stream()
+                .map(SeckillOrder::getUserId)
+                .toList();
+
+        if (!userIds.isEmpty()) {
+            // 批量添加到Redis Set
+            String[] userIdStrs = userIds.stream()
+                    .map(String::valueOf)
+                    .toArray(String[]::new);
+            stringRedisTemplate.opsForSet().add(userKey, userIdStrs);
+            log.warn("活动[{}] Redis用户Set缓存丢失，从DB重建完成: {} 位用户", activityId, userIds.size());
+        } else {
+            // 确保Set存在（即使为空）
+            stringRedisTemplate.opsForSet().add(userKey, "init_placeholder");
+            stringRedisTemplate.opsForSet().remove(userKey, "init_placeholder");
+            log.warn("活动[{}] Redis用户Set缓存丢失，初始化为空Set", activityId);
         }
     }
 
@@ -218,15 +285,48 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
         return order;
     }
 
+    /**
+     * 创建秒杀订单
+     */
     private Long createSeckillOrder(Long userId, Long orderId, Long activityId, BigDecimal seckillPrice) {
-        SeckillOrder seckillOrder = SeckillOrder.builder()
-            .userId(userId)
-            .orderId(orderId)
-            .seckillActivityId(activityId)
-            .seckillPrice(seckillPrice)
-            .build();
-        save(seckillOrder);
-        return seckillOrder.getId();
+        // MySQL物理防重兜底：再次检查是否已购买
+        boolean hasPurchased = lambdaQuery()
+                .eq(SeckillOrder::getUserId, userId)
+                .eq(SeckillOrder::getSeckillActivityId, activityId)
+                .exists();
+        if (hasPurchased) {
+            throw new BusinessException("您已购买过该秒杀商品，无法重复下单");
+        }
+
+        try {
+            SeckillOrder seckillOrder = SeckillOrder.builder()
+                .userId(userId)
+                .orderId(orderId)
+                .seckillActivityId(activityId)
+                .seckillPrice(seckillPrice)
+                .build();
+            save(seckillOrder);
+            return seckillOrder.getId();
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 捕获唯一键冲突异常（高并发下极端情况：两条请求同时通过exists检查）
+            log.warn("用户[{}]活动[{}]触发唯一键冲突，已成功防止重复下单", userId, activityId);
+            throw new BusinessException("您已购买过该秒杀商品，无法重复下单");
+        }
+    }
+
+    /**
+     * 扣减MySQL库存
+     */
+    private void decreaseMySQLStock(Long activityId) {
+        boolean success = seckillActivityService.lambdaUpdate()
+                .eq(SeckillActivity::getId, activityId)
+                .gt(SeckillActivity::getAvailableStock, 0)
+                .setSql("available_stock = available_stock - 1")
+                .update();
+
+        if (!success) {
+            throw new BusinessException("MySQL库存扣减失败");
+        }
     }
 
 

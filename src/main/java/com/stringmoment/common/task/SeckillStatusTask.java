@@ -69,6 +69,37 @@ public class SeckillStatusTask {
         }
     }
 
+    /**
+     * 异步补偿定时任务（库存校对）
+     * 读取MySQL真实库存，直接覆盖Redis库存，抹平所有补偿失败、宕机带来的数据差
+     */
+    @Scheduled(fixedRate = 60000)
+    public void reconcileStock() {
+        // 1. 查询进行中的活动
+        List<SeckillActivity> activities = seckillActivityService.list(
+            new LambdaQueryWrapper<SeckillActivity>()
+                .eq(SeckillActivity::getStatus, SeckillConstant.SECKILL_ACTIVITY_ON_GOING)
+        );
+
+        if (activities.isEmpty()) {
+            return;
+        }
+
+        // 2. 校对库存：读取MySQL真实库存，直接覆盖Redis库存
+        for (SeckillActivity activity : activities) {
+            Long activityId = activity.getId();
+            String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX + activityId;
+            
+            // 读取MySQL真实库存
+            Integer mysqlStock = activity.getAvailableStock();
+            
+            // 直接覆盖Redis库存
+            stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(mysqlStock));
+            
+            log.info("异步补偿：活动[{}]库存校对完成，MySQL库存={}, Redis库存已同步", activityId, mysqlStock);
+        }
+    }
+
     private Integer calculateStatus(SeckillActivity activity, LocalDateTime now) {
         if (now.isBefore(activity.getStartTime())) {
             return SeckillConstant.SECKILL_ACTIVITY_NOT_STARTED;
@@ -106,20 +137,15 @@ public class SeckillStatusTask {
     }
 
     /**
-     * 活动结束：同步剩余库存回DB，清理Redis缓存
+     * 活动结束：清理Redis缓存
      */
     private void syncAndClearCache(SeckillActivity activity) {
-        String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX+ activity.getId();
+        String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX + activity.getId();
         String userKey = SeckillConstant.SECKILL_USER_KEY_PREFIX + activity.getId();
 
-        String stockStr = stringRedisTemplate.opsForValue().get(stockKey);
-        if (stockStr != null) {
-            int remainStock = Integer.parseInt(stockStr);
-            activity.setAvailableStock(remainStock);
-            log.info("活动[{}]剩余库存同步回DB: {}", activity.getId(), remainStock);
-        }
-
+        // 清理Redis缓存
         stringRedisTemplate.delete(stockKey);
         stringRedisTemplate.delete(userKey);
+        log.info("活动[{}]结束，已清理Redis缓存", activity.getId());
     }
 }
