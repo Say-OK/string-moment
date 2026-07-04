@@ -23,6 +23,7 @@ public class UserVO {
     private String phone;
     private String avatar = UserConstant.DEFAULT_AVATAR;
     private Integer status;
+    private Integer role;
     private String createTime;
     
     // Entity转换
@@ -38,6 +39,7 @@ public class UserVO {
         vo.setPhone(user.getPhone());
         vo.setAvatar(user.getAvatar());
         vo.setStatus(user.getStatus());
+        vo.setRole(user.getRole() != null ? user.getRole() : UserConstant.USER_ROLE_NORMAL);
         
         // 格式化时间
         if (user.getCreateTime() != null) {

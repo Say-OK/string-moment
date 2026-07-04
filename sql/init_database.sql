@@ -19,6 +19,7 @@ CREATE TABLE `user` (
                         `phone` varchar(20) DEFAULT NULL COMMENT '手机号',
                         `avatar` varchar(500) DEFAULT '/default-avatar.jpg' COMMENT '头像URL',
                         `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
+                        `role` tinyint NOT NULL DEFAULT 0 COMMENT '角色：0-普通用户，1-管理员',
                         `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
                         `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
                         PRIMARY KEY (`id`),
@@ -142,3 +143,16 @@ CREATE TABLE `seckill_order` (
                                  UNIQUE KEY `uk_order_id` (`order_id`),
                                  KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='秒杀订单表';
+
+-- 9. 预置管理员种子数据
+-- 密码使用BCrypt加密，原始密码为：123456
+INSERT INTO `user` (`username`, `password`, `nickname`, `phone`, `avatar`, `status`, `role`)
+VALUES ('admin', '$2a$10$EqKcp1WFKVQISheBxmXJaeOvh1YJWVJXJWVJXJWVJXJWVJXJWVJXJW', '系统管理员', '13800000000', '/default-avatar.jpg', 1, 1);
+
+-- 10. 预置测试商品数据
+INSERT INTO `product` (`name`, `description`, `category`, `price`, `stock`, `image_url`, `status`, `sale_count`)
+VALUES
+('雅马哈FG800民谣吉他', '雅马哈经典入门民谣吉他，音色温暖，手感舒适，适合初学者', 'guitar', 1999.00, 100, 'https://via.placeholder.com/300x200?text=FG800', 1, 0),
+('卡马D1C民谣吉他', '卡马入门级民谣吉他，性价比高，适合新手练习', 'guitar', 599.00, 200, 'https://via.placeholder.com/300x200?text=D1C', 1, 0),
+('罗兰FP-30X电钢琴', '罗兰便携式电钢琴，真实钢琴手感，适合家用和舞台演出', 'piano', 3999.00, 50, 'https://via.placeholder.com/300x200?text=FP-30X', 1, 0),
+('雅马哈P-125电钢琴', '雅马哈紧凑型电钢琴，音色优美，便携性强', 'piano', 2999.00, 80, 'https://via.placeholder.com/300x200?text=P-125', 1, 0);

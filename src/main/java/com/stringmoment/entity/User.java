@@ -57,7 +57,13 @@ public class User implements Serializable {
      */
     @TableField(value = "status")
     private Integer status;
-    
+
+    /**
+     * 用户角色：0-普通用户，1-管理员
+     */
+    @TableField(value = "role")
+    private Integer role;
+
     /**
      * 注册时间
      * 使用LocalDateTime代替Date，是Java8的新时间API
