@@ -3,7 +3,6 @@ package com.stringmoment.common.util;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -52,11 +51,12 @@ public class JwtUtil {
     }
 
     /**
-     * 生成token
+     * 生成token（携带用户角色）
      */
-    public String generateToken(Long userId) {
+    public String generateToken(Long userId, Integer role) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
+        claims.put("role", role);
 
         return Jwts.builder()
                 .setClaims(claims)  // 内容
@@ -83,6 +83,28 @@ public class JwtUtil {
             return Long.parseLong((String) userId);
         } else {
             throw new IllegalArgumentException("用户ID格式不正确");
+        }
+    }
+
+    /**
+     * 从token中获取用户角色
+     */
+    public Integer getRoleFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        Object role = claims.get("role");
+
+        if (role == null) {
+            return 0; // 默认普通用户
+        }
+
+        if (role instanceof Integer) {
+            return (Integer) role;
+        } else if (role instanceof Long) {
+            return ((Long) role).intValue();
+        } else if (role instanceof String) {
+            return Integer.parseInt((String) role);
+        } else {
+            return 0;
         }
     }
     

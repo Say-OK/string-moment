@@ -6,6 +6,10 @@ public final class UserConstant {
     public static final Integer USER_STATUS_DISABLE = 0;
     public static final Integer USER_STATUS_NORMAL = 1;
 
+    // 用户角色
+    public static final Integer USER_ROLE_NORMAL = 0;   // 普通用户
+    public static final Integer USER_ROLE_ADMIN = 1;    // 管理员
+
     // 默认值
     public static final String DEFAULT_AVATAR = "/default-avatar.jpg";
 
