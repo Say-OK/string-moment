@@ -58,6 +58,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .phone(dto.getPhone())
                 .avatar(UserConstant.DEFAULT_AVATAR)
                 .status(UserConstant.USER_STATUS_NORMAL)
+                .role(UserConstant.USER_ROLE_NORMAL)
                 .build();
 
         // 4. 保存到数据库
@@ -83,10 +84,46 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             throw new BusinessException("用户名或密码错误");
         }
 
-        // 3. 生成token
-        String token = jwtUtil.generateToken(user.getId());
+        // 3. 禁止管理员用用户登录接口
+        if (UserConstant.USER_ROLE_ADMIN.equals(user.getRole())) {
+            throw new BusinessException("管理员账号请使用管理后台登录");
+        }
 
-        // 4. 返回结果
+        // 4. 生成token（携带角色信息）
+        String token = jwtUtil.generateToken(user.getId(), user.getRole() != null ? user.getRole() : UserConstant.USER_ROLE_NORMAL);
+
+        // 5. 返回结果
+        return LoginResultVO.builder()
+                .token(token)
+                .user(UserVO.fromEntity(user))
+                .build();
+    }
+
+    /**
+     * 管理员登录
+     */
+    @Override
+    public LoginResultVO adminLogin(UserLoginDTO dto) {
+        // 1. 查询用户（状态正常）
+        User user = lambdaQuery()
+                .eq(User::getUsername, dto.getUsername())
+                .eq(User::getStatus, UserConstant.USER_STATUS_NORMAL)
+                .one();
+
+        // 2. 统一验证
+        if (user == null || !passwordUtil.matches(dto.getPassword(), user.getPassword())) {
+            throw new BusinessException("用户名或密码错误");
+        }
+
+        // 3. 校验管理员角色
+        if (!UserConstant.USER_ROLE_ADMIN.equals(user.getRole())) {
+            throw new BusinessException("非管理员账户，无法登录管理后台");
+        }
+
+        // 4. 生成token（携带角色信息）
+        String token = jwtUtil.generateToken(user.getId(), user.getRole());
+
+        // 5. 返回结果
         return LoginResultVO.builder()
                 .token(token)
                 .user(UserVO.fromEntity(user))

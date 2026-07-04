@@ -28,6 +28,11 @@ public interface UserService extends IService<User> {
     LoginResultVO login(@Valid UserLoginDTO dto);
 
     /**
+     * 管理员登录
+     */
+    LoginResultVO adminLogin(@Valid UserLoginDTO dto);
+
+    /**
      * 获取当前用户信息
      */
     UserVO getUserInfo(Long userId);

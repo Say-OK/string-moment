@@ -26,6 +26,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/user/register",     // 注册
                         "/user/login",        // 登录
 
+                        // 管理员模块公开接口
+                        "/admin/login",       // 管理员登录
+
                         // 商品模块公开接口（用户端）
                         "/product/list",      // 商品列表
                         "/product/detail/*",  // 商品详情

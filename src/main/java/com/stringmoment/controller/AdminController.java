@@ -6,6 +6,7 @@ import com.stringmoment.model.response.*;
 import com.stringmoment.service.OrderService;
 import com.stringmoment.service.ProductService;
 import com.stringmoment.service.SeckillActivityService;
+import com.stringmoment.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -30,6 +31,20 @@ public class AdminController {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private UserService userService;
+
+    // ==================== 管理员登录 ====================
+
+    /**
+     * 管理员登录
+     */
+    @PostMapping("/login")
+    public Result<LoginResultVO> adminLogin(@Valid @RequestBody UserLoginDTO dto) {
+        LoginResultVO result = userService.adminLogin(dto);
+        return Result.success("管理员登录成功", result);
+    }
 
     // ==================== 商品查询（管理员端） ====================
 
