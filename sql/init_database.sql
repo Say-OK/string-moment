@@ -38,6 +38,7 @@ CREATE TABLE `product` (
                            `stock` int NOT NULL DEFAULT 0 COMMENT '总库存',
                            `image_url` varchar(500) DEFAULT NULL COMMENT '商品主图URL',
                            `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态：0-下架，1-上架',
+                           `is_deleted` tinyint NOT NULL DEFAULT 0 COMMENT '是否删除：0-未删除，1-已删除',
                            `sale_count` int NOT NULL DEFAULT 0 COMMENT '销量统计',
                            `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                            `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -52,12 +53,16 @@ CREATE TABLE `seckill_activity` (
                                     `id` bigint NOT NULL AUTO_INCREMENT COMMENT '活动ID',
                                     `name` varchar(200) NOT NULL COMMENT '活动名称',
                                     `product_id` bigint NOT NULL COMMENT '关联的商品ID',
+                                    `seckill_product_name` varchar(200) NOT NULL COMMENT '商品名称（快照）',
+                                    `seckill_product_image` varchar(500) DEFAULT NULL COMMENT '商品图片URL（快照）',
+                                    `seckill_product_price` decimal(10,2) NOT NULL COMMENT '商品原价（快照）',
                                     `seckill_price` decimal(10,2) NOT NULL COMMENT '秒杀价格',
                                     `total_stock` int NOT NULL COMMENT '总秒杀库存',
                                     `available_stock` int NOT NULL COMMENT '可用库存（实时更新）',
                                     `start_time` datetime NOT NULL COMMENT '开始时间',
                                     `end_time` datetime NOT NULL COMMENT '结束时间',
                                     `status` tinyint NOT NULL DEFAULT 0 COMMENT '状态：0-未开始，1-进行中，2-已结束',
+                                    `is_deleted` tinyint NOT NULL DEFAULT 0 COMMENT '是否删除：0-未删除，1-已删除',
                                     `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                                     PRIMARY KEY (`id`),
                                     KEY `idx_product_id` (`product_id`),
@@ -147,7 +152,7 @@ CREATE TABLE `seckill_order` (
 -- 9. 预置管理员种子数据
 -- 密码使用BCrypt加密，原始密码为：123456
 INSERT INTO `user` (`username`, `password`, `nickname`, `phone`, `avatar`, `status`, `role`)
-VALUES ('admin', '$2a$10$EqKcp1WFKVQISheBxmXJaeOvh1YJWVJXJWVJXJWVJXJWVJXJWVJXJW', '系统管理员', '13800000000', '/default-avatar.jpg', 1, 1);
+VALUES ('admin', '$2a$10$ndW6Nd3KJisACdcqm8Kmcub3tAeGPEezeUAGirohJu4N8rxhqJxmO', '系统管理员', '13800000000', '/uploads/avatars/default-avatar.jpg', 1, 1);
 
 -- 10. 预置测试商品数据
 INSERT INTO `product` (`name`, `description`, `category`, `price`, `stock`, `image_url`, `status`, `sale_count`)
