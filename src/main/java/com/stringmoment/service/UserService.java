@@ -2,10 +2,8 @@ package com.stringmoment.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.stringmoment.entity.User;
-import com.stringmoment.model.request.PasswordUpdateDTO;
-import com.stringmoment.model.request.UserLoginDTO;
-import com.stringmoment.model.request.UserRegisterDTO;
-import com.stringmoment.model.request.UserUpdateDTO;
+import com.stringmoment.model.request.*;
+import com.stringmoment.model.response.AdminUserPageVO;
 import com.stringmoment.model.response.LoginResultVO;
 import com.stringmoment.model.response.UserVO;
 import jakarta.validation.Valid;
@@ -16,12 +14,12 @@ import jakarta.validation.Valid;
  * 继承IService，获得MyBatis-Plus提供的增强服务方法
  */
 public interface UserService extends IService<User> {
-    
+
     /**
      * 用户注册
      */
     UserVO register(@Valid UserRegisterDTO dto);
-    
+
     /**
      * 用户登录
      */
@@ -46,4 +44,21 @@ public interface UserService extends IService<User> {
      * 修改密码
      */
     void updatePassword(Long userId, @Valid PasswordUpdateDTO dto);
+
+    // ==================== 管理员端用户管理 ====================
+
+    /**
+     * 获取用户列表（管理员端）
+     */
+    AdminUserPageVO getAdminUserList(@Valid AdminUserListQueryDTO dto);
+
+    /**
+     * 获取用户详情（管理员端）
+     */
+    UserVO getUserDetailAdmin(Long id);
+
+    /**
+     * 禁用/启用用户（管理员端）
+     */
+    void updateUserStatus(Long id, Integer status);
 }

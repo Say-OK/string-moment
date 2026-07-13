@@ -3,6 +3,8 @@ package com.stringmoment.common.config;
 import com.stringmoment.common.constant.UserConstant;
 import com.stringmoment.common.exception.AuthenticationException;
 import com.stringmoment.common.util.JwtUtil;
+import com.stringmoment.entity.User;
+import com.stringmoment.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +26,9 @@ public class JwtInterceptor implements HandlerInterceptor {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private UserService userService;
 
     @Override
     public boolean preHandle(@NonNull HttpServletRequest request,
@@ -51,11 +56,20 @@ public class JwtInterceptor implements HandlerInterceptor {
         Long userId = jwtUtil.getUserIdFromToken(token);
         Integer role = jwtUtil.getRoleFromToken(token);
 
-        // 6. 将用户ID和角色存入request，供后续使用
+        // 6. 检查用户是否被禁用（实时检查数据库状态）
+        User user = userService.getById(userId);
+        if (user == null) {
+            throw new AuthenticationException("用户不存在");
+        }
+        if (UserConstant.USER_STATUS_DISABLE.equals(user.getStatus())) {
+            throw new AuthenticationException("您的账号已被禁用，请联系管理员");
+        }
+
+        // 7. 将用户ID和角色存入request，供后续使用
         request.setAttribute("userId", userId);
         request.setAttribute("role", role);
 
-        // 7. 对/admin/**路径进行管理员权限校验
+        // 8. 对/admin/**路径进行管理员权限校验
         String requestURI = request.getRequestURI();
         if (requestURI.startsWith("/admin/")) {
             if (!UserConstant.USER_ROLE_ADMIN.equals(role)) {

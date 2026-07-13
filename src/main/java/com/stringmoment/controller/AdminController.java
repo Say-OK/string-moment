@@ -1,5 +1,6 @@
 package com.stringmoment.controller;
 
+import com.stringmoment.common.constant.UserConstant;
 import com.stringmoment.common.result.Result;
 import com.stringmoment.model.request.*;
 import com.stringmoment.model.response.*;
@@ -171,6 +172,15 @@ public class AdminController {
         return Result.success("秒杀活动删除成功");
     }
 
+    /**
+     * 停止秒杀活动
+     */
+    @PutMapping("/seckill/stop/{id}")
+    public Result<Void> stopSeckillActivity(@PathVariable Long id) {
+        seckillActivityService.stopActivity(id);
+        return Result.success("秒杀活动已停止");
+    }
+
     // ==================== 订单管理（管理员端） ====================
 
     /**
@@ -198,5 +208,35 @@ public class AdminController {
     public Result<Void> shipOrder(@PathVariable Long id) {
         orderService.shipOrder(id);
         return Result.success("订单发货成功");
+    }
+
+    // ==================== 用户管理（管理员端） ====================
+
+    /**
+     * 获取用户列表（管理员：查询所有用户，可按状态和角色筛选）
+     */
+    @GetMapping("/user/list")
+    public Result<AdminUserPageVO> getAdminUserList(@Valid AdminUserListQueryDTO dto) {
+        AdminUserPageVO pageVO = userService.getAdminUserList(dto);
+        return Result.success(pageVO);
+    }
+
+    /**
+     * 获取用户详情（管理员：可以查看所有用户）
+     */
+    @GetMapping("/user/detail/{id}")
+    public Result<UserVO> getUserDetailAdmin(@PathVariable Long id) {
+        UserVO userVO = userService.getUserDetailAdmin(id);
+        return Result.success(userVO);
+    }
+
+    /**
+     * 禁用/启用用户（管理员独有）
+     */
+    @PutMapping("/user/status/{id}")
+    public Result<Void> updateUserStatus(@PathVariable Long id, @RequestParam Integer status) {
+        userService.updateUserStatus(id, status);
+        String message = UserConstant.USER_STATUS_NORMAL.equals(status) ? "用户已启用" : "用户已禁用";
+        return Result.success(message);
     }
 }

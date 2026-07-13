@@ -1,5 +1,7 @@
 package com.stringmoment.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stringmoment.common.constant.UserConstant;
 import com.stringmoment.common.exception.BusinessException;
@@ -7,10 +9,8 @@ import com.stringmoment.common.util.JwtUtil;
 import com.stringmoment.common.util.PasswordUtil;
 import com.stringmoment.entity.User;
 import com.stringmoment.mapper.UserMapper;
-import com.stringmoment.model.request.PasswordUpdateDTO;
-import com.stringmoment.model.request.UserLoginDTO;
-import com.stringmoment.model.request.UserRegisterDTO;
-import com.stringmoment.model.request.UserUpdateDTO;
+import com.stringmoment.model.request.*;
+import com.stringmoment.model.response.AdminUserPageVO;
 import com.stringmoment.model.response.LoginResultVO;
 import com.stringmoment.model.response.UserVO;
 import com.stringmoment.service.UserService;
@@ -73,26 +73,30 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public LoginResultVO login(UserLoginDTO dto) {
-        // 1. 查询用户（状态正常）
+        // 1. 查询用户
         User user = lambdaQuery()
                 .eq(User::getUsername, dto.getUsername())
-                .eq(User::getStatus, UserConstant.USER_STATUS_NORMAL)
                 .one();
 
-        // 2. 统一验证
+        // 2. 用户不存在或密码错误
         if (user == null || !passwordUtil.matches(dto.getPassword(), user.getPassword())) {
             throw new BusinessException("用户名或密码错误");
         }
 
-        // 3. 禁止管理员用用户登录接口
+        // 3. 检查用户是否被禁用
+        if (UserConstant.USER_STATUS_DISABLE.equals(user.getStatus())) {
+            throw new BusinessException("您的账号已被禁用，请联系管理员");
+        }
+
+        // 4. 禁止管理员用用户登录接口
         if (UserConstant.USER_ROLE_ADMIN.equals(user.getRole())) {
             throw new BusinessException("管理员账号请使用管理后台登录");
         }
 
-        // 4. 生成token（携带角色信息）
+        // 5. 生成token（携带角色信息）
         String token = jwtUtil.generateToken(user.getId(), user.getRole() != null ? user.getRole() : UserConstant.USER_ROLE_NORMAL);
 
-        // 5. 返回结果
+        // 6. 返回结果
         return LoginResultVO.builder()
                 .token(token)
                 .user(UserVO.fromEntity(user))
@@ -104,26 +108,30 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public LoginResultVO adminLogin(UserLoginDTO dto) {
-        // 1. 查询用户（状态正常）
+        // 1. 查询用户
         User user = lambdaQuery()
                 .eq(User::getUsername, dto.getUsername())
-                .eq(User::getStatus, UserConstant.USER_STATUS_NORMAL)
                 .one();
 
-        // 2. 统一验证
+        // 2. 用户不存在或密码错误
         if (user == null || !passwordUtil.matches(dto.getPassword(), user.getPassword())) {
             throw new BusinessException("用户名或密码错误");
         }
 
-        // 3. 校验管理员角色
+        // 3. 检查用户是否被禁用
+        if (UserConstant.USER_STATUS_DISABLE.equals(user.getStatus())) {
+            throw new BusinessException("您的账号已被禁用，请联系系统管理员");
+        }
+
+        // 4. 校验管理员角色
         if (!UserConstant.USER_ROLE_ADMIN.equals(user.getRole())) {
             throw new BusinessException("非管理员账户，无法登录管理后台");
         }
 
-        // 4. 生成token（携带角色信息）
+        // 5. 生成token（携带角色信息）
         String token = jwtUtil.generateToken(user.getId(), user.getRole());
 
-        // 5. 返回结果
+        // 6. 返回结果
         return LoginResultVO.builder()
                 .token(token)
                 .user(UserVO.fromEntity(user))
@@ -215,6 +223,90 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 5. 更新密码
         user.setPassword(passwordUtil.encode(dto.getNewPassword()));
+        updateById(user);
+    }
+
+    // ==================== 管理员端用户管理 ====================
+
+    /**
+     * 获取用户列表（管理员端）
+     */
+    @Override
+    public AdminUserPageVO getAdminUserList(AdminUserListQueryDTO dto) {
+        // 1. 构建查询条件
+        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+
+        // 搜索关键词（用户名/昵称/手机号）
+        if (StringUtils.hasText(dto.getKeyword())) {
+            queryWrapper.and(wrapper -> wrapper
+                    .like(User::getUsername, dto.getKeyword())
+                    .or()
+                    .like(User::getNickname, dto.getKeyword())
+                    .or()
+                    .like(User::getPhone, dto.getKeyword())
+            );
+        }
+
+        // 状态筛选
+        if (dto.getStatus() != null) {
+            queryWrapper.eq(User::getStatus, dto.getStatus());
+        }
+
+        // 角色筛选
+        if (dto.getRole() != null) {
+            queryWrapper.eq(User::getRole, dto.getRole());
+        }
+
+        // 按创建时间降序排序
+        queryWrapper.orderByDesc(User::getCreateTime);
+
+        // 2. 分页查询
+        Page<User> page = new Page<>(dto.getPage(), dto.getSize());
+        Page<User> result = page(page, queryWrapper);
+
+        // 3. 构建返回对象
+        AdminUserPageVO pageVO = new AdminUserPageVO();
+        pageVO.setList(result.getRecords().stream().map(UserVO::fromEntity).toList());
+        pageVO.setTotal(result.getTotal());
+        pageVO.setPage(dto.getPage());
+        pageVO.setSize(dto.getSize());
+        pageVO.setPages((int) result.getPages());
+
+        return pageVO;
+    }
+
+    /**
+     * 获取用户详情（管理员端）
+     */
+    @Override
+    public UserVO getUserDetailAdmin(Long id) {
+        User user = getById(id);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        return UserVO.fromEntity(user);
+    }
+
+    /**
+     * 禁用/启用用户（管理员端）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateUserStatus(Long id, Integer status) {
+        // 1. 查询用户
+        User user = getById(id);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 2. 校验管理员不能禁用其他管理员
+        if (UserConstant.USER_ROLE_ADMIN.equals(user.getRole()) 
+                && UserConstant.USER_STATUS_DISABLE.equals(status)) {
+            throw new BusinessException("管理员不能禁用其他管理员账号");
+        }
+
+        // 3. 更新状态
+        user.setStatus(status);
         updateById(user);
     }
 
