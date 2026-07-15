@@ -11,6 +11,17 @@ public final class SeckillConstant {
     public static final String SECKILL_STOCK_KEY_PREFIX = "seckill:stock:";
     public static final String SECKILL_USER_KEY_PREFIX = "seckill:user:";
 
+    // 分布式锁 Key前缀
+    public static final String SECKILL_USER_LOCK_KEY_PREFIX = "lock:seckill:user:";
+
+    // 分布式锁配置
+    public static final long LOCK_EXPIRE_SECONDS = 10;      // 锁过期时间（秒）
+    public static final long LOCK_WAIT_MILLISECONDS = 30;  // 未获取锁时的等待时间（毫秒）
+    public static final int LOCK_RETRY_TIMES = 2;           // 未获取锁时的重试次数
+
+    // Redis Set初始化占位符（用于初始化空Set）
+    public static final String REDIS_SET_EMPTY_PLACEHOLDER = "init_placeholder";
+
     // 秒杀活动状态
     public static final Integer SECKILL_ACTIVITY_NOT_STARTED = 0;
     public static final Integer SECKILL_ACTIVITY_ON_GOING = 1;
