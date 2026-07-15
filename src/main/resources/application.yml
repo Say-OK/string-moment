@@ -2,12 +2,25 @@ server:
   port: 8080
   servlet:
     context-path: /api  # 所有接口都以/api开头
+  tomcat:
+    threads:
+      max: 500                    # 最大工作线程数
+      min-spare: 50               # 最小空闲线程数
+    accept-count: 200             # 等待队列长度
+    max-connections: 10000        # 最大连接数
 
 spring:
   # 指定使用哪个环境：dev=开发，prod=生产
   # 现在用dev，等上线时改成prod
   profiles:
     active: dev
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB  # 单个文件最大10MB
+      max-request-size: 10MB  # 整个请求最大10MB
 
 # MyBatis-Plus配置
 mybatis-plus:
@@ -19,13 +32,20 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: auto
+      logic-delete-field: isDeleted # 全局逻辑删除字段名
+      logic-delete-value: 1 # 逻辑已删除值
+      logic-not-delete-value: 0 # 逻辑未删除值
   # 具体配置
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl  # 使用Slf4j，可通过日志级别控制SQL输出
 
 # JWT配置
 jwt:
   secret: string-moment-secret-key-2026-1234567890
-  expiration: 86400000  # 24小时
-  header: Authorization
+  expire: 604800000  # 7天（单位：毫秒）
+
+# 文件上传配置
+file:
+  upload:
+    path: uploads  # 文件存储路径（相对于项目根目录）
