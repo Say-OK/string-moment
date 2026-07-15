@@ -211,11 +211,16 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
             throw new BusinessException("商品不存在");
         }
 
-        // 2. 记录原分类（用于判断是否需要清除缓存）
+        // 2. 上架状态禁止编辑
+        if (product.getStatus().equals(ProductConstant.PRODUCT_STATUS_ON)) {
+            throw new BusinessException("上架商品无法编辑，请先下架");
+        }
+
+        // 3. 记录原分类（用于判断是否需要清除缓存）
         String oldCategory = product.getCategory();
         boolean isCategoryChanged = false;
 
-        // 3. 更新非空字段
+        // 4. 更新非空字段（下架状态可以编辑所有字段）
         if (StringUtils.hasText(dto.getName())) {
             product.setName(dto.getName());
         }
@@ -239,18 +244,18 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
             product.setImageUrl(dto.getImageUrl());
         }
 
-        // 4. 保存更新
+        // 5. 保存更新
         updateById(product);
 
-        // 5. 清除商品详情缓存
+        // 6. 清除商品详情缓存
         clearProductDetailCache(id);
 
-        // 6. 只有分类变化且商品上架时才清除分类缓存
+        // 7. 只有分类变化且商品上架时才清除分类缓存
         if (isCategoryChanged && product.getStatus().equals(ProductConstant.PRODUCT_STATUS_ON)) {
             clearCategoryCache();
         }
 
-        // 7. 返回更新后的商品信息
+        // 8. 返回更新后的商品信息
         return ProductVO.fromEntity(product);
     }
 
@@ -266,13 +271,18 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
             throw new BusinessException("商品不存在");
         }
 
-        // 2. 删除商品
-        removeById(id);
+        // 2. 上架状态禁止删除
+        if (product.getStatus().equals(ProductConstant.PRODUCT_STATUS_ON)) {
+            throw new BusinessException("上架商品无法删除，请先下架");
+        }
 
-        // 3. 清除商品详情缓存
+        // 3. 执行软删除（is_deleted=1）
+        removeById(id); // MyBatis-Plus会自动执行软删除
+
+        // 4. 清除商品详情缓存
         clearProductDetailCache(id);
 
-        // 4. 清除分类缓存
+        // 5. 清除分类缓存
         clearCategoryCache();
     }
 

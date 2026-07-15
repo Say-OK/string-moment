@@ -47,6 +47,11 @@ public interface SeckillActivityService extends IService<SeckillActivity> {
     void deleteSeckillActivity(Long id);
 
     /**
+     * 停止秒杀活动（管理员）
+     */
+    void stopActivity(Long id);
+
+    /**
      * 查询所有秒杀活动（管理员：可按状态筛选）
      */
     SeckillActivityPageVO getAllSeckillActivityList(AdminSeckillActivityListQueryDTO dto);

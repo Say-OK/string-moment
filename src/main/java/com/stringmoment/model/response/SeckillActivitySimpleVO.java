@@ -2,6 +2,7 @@ package com.stringmoment.model.response;
 
 import com.stringmoment.entity.SeckillActivity;
 import lombok.Data;
+
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -12,7 +13,7 @@ import java.time.format.DateTimeFormatter;
  */
 @Data
 public class SeckillActivitySimpleVO {
-    
+
     private Long id;
     private String name;
     private String productName;
@@ -25,29 +26,28 @@ public class SeckillActivitySimpleVO {
     private String endTime;
     private Integer status;       // 0-未开始，1-进行中，2-已结束
     private Long timeLeft;        // 剩余时间（秒）
-    
+
     /**
-     * 从SeckillActivity实体转换为简略VO
+     * 从SeckillActivity实体转换为简略VO（使用快照信息）
      */
-    public static SeckillActivitySimpleVO fromEntity(
-            SeckillActivity activity,
-            String productName,
-            String productImage,
-            BigDecimal originalPrice) {
-        
+    public static SeckillActivitySimpleVO fromEntityWithSnapshot(SeckillActivity activity) {
+
         if (activity == null) {
             return null;
         }
-        
+
         SeckillActivitySimpleVO vo = new SeckillActivitySimpleVO();
         vo.setId(activity.getId());
         vo.setName(activity.getName());
-        vo.setProductName(productName);
-        vo.setProductImage(productImage);
-        vo.setOriginalPrice(originalPrice);
+
+        // 使用快照字段
+        vo.setProductName(activity.getSeckillProductName());
+        vo.setProductImage(activity.getSeckillProductImage());
+        vo.setOriginalPrice(activity.getSeckillProductPrice());
+
         vo.setSeckillPrice(activity.getSeckillPrice());
         vo.setStatus(activity.getStatus());
-        
+
         // 计算库存状态和百分比
         if (activity.getAvailableStock() <= 0) {
             vo.setStockStatus(0);  // 已售罄
@@ -61,7 +61,7 @@ public class SeckillActivitySimpleVO {
                 vo.setStockPercent(0);
             }
         }
-        
+
         // 格式化时间
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         if (activity.getStartTime() != null) {
@@ -70,7 +70,7 @@ public class SeckillActivitySimpleVO {
         if (activity.getEndTime() != null) {
             vo.setEndTime(activity.getEndTime().format(formatter));
         }
-        
+
         // 计算剩余时间
         if (activity.getStatus() == 1 && activity.getEndTime() != null) {
             LocalDateTime now = LocalDateTime.now();
@@ -81,7 +81,7 @@ public class SeckillActivitySimpleVO {
                 vo.setTimeLeft(0L);
             }
         }
-        
+
         return vo;
     }
 }

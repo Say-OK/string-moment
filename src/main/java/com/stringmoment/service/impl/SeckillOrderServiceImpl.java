@@ -5,7 +5,10 @@ import com.stringmoment.common.constant.OrderConstant;
 import com.stringmoment.common.constant.SeckillConstant;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.common.util.OrderNoGenerator;
-import com.stringmoment.entity.*;
+import com.stringmoment.entity.Order;
+import com.stringmoment.entity.OrderItem;
+import com.stringmoment.entity.SeckillActivity;
+import com.stringmoment.entity.SeckillOrder;
 import com.stringmoment.mapper.SeckillOrderMapper;
 import com.stringmoment.model.request.SeckillExecuteDTO;
 import com.stringmoment.model.response.AddressVO;
@@ -20,9 +23,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 
 @Slf4j
@@ -37,9 +42,6 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
 
     @Autowired
     private SeckillActivityService seckillActivityService;
-
-    @Autowired
-    private ProductService productService;
 
     @Autowired
     private UserAddressService userAddressService;
@@ -84,7 +86,7 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
             // Redis缓存不存在，从MySQL读取并回填Redis
             stock = activity.getAvailableStock();
             stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(stock));
-            log.warn("活动[{}]库存缓存丢失，从MySQL回填: {}", activityId, stock);
+            log.info("活动[{}]库存缓存丢失，从MySQL回填: {}", activityId, stock);
         }
         if (stock <= 0) {
             return SeckillConstant.QUALIFY_STOCK_LACK;
@@ -100,9 +102,9 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
         // Redis Set不存在，查MySQL兜底并回填Redis
         Boolean userKeyExists = stringRedisTemplate.hasKey(userKey);
         if (!Boolean.TRUE.equals(userKeyExists)) {
-            // 复用rebuildUserSetFromDB方法重建用户Set缓存
-            rebuildUserSetFromDB(activityId, userKey);
-            
+            // 使用分布式锁重建用户Set缓存
+            rebuildUserCacheWithLock(activityId, userKey);
+
             // 重建后再次检查用户是否已购买
             Boolean userExistsAfterRebuild = stringRedisTemplate.opsForSet().isMember(userKey, userId.toString());
             if (Boolean.TRUE.equals(userExistsAfterRebuild)) {
@@ -122,15 +124,10 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
         Long activityId = dto.getSeckillActivityId();
         Long addressId = dto.getAddressId();
 
-        // 1. 前置校验（查活动、商品、地址）
+        // 1. 前置校验（查活动、地址）
         SeckillActivity activity = seckillActivityService.getById(activityId);
         if (activity == null) {
             return buildFailVO(SeckillConstant.SECKILL_RESULT_ERROR, "秒杀活动不存在");
-        }
-
-        Product product = productService.getById(activity.getProductId());
-        if (product == null) {
-            return buildFailVO(SeckillConstant.SECKILL_RESULT_ERROR, "商品不存在");
         }
 
         AddressVO address = userAddressService.getAddressByIdAndUser(addressId, userId);
@@ -151,13 +148,13 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
         try {
             return transactionTemplate.execute(status -> {
                 // 1. 创建订单
-                Order order = createOrder(userId, activity, product, address);
+                Order order = createOrder(userId, activity, address);
                 Long seckillOrderId = createSeckillOrder(userId, order.getId(), activity.getId(), activity.getSeckillPrice());
 
                 // 2. 扣减MySQL库存
                 decreaseMySQLStock(activity.getId());
 
-                return buildSuccessVO(order, seckillOrderId, activity.getSeckillPrice(), product);
+                return buildSuccessVO(order, seckillOrderId, activity);
             });
         } catch (Exception e) {
             log.error("MySQL操作失败，同步回滚Redis，定时任务作为最终兜底校对库存", e);
@@ -174,24 +171,86 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
 
     /**
      * 从数据库恢复缓存（库存 + 用户购买记录）
+     * 库存缓存：从内存对象读取，无需锁
+     * 用户购买记录缓存：需要查数据库，使用分布式锁避免并发查询
      */
     private void ensureRedisCache(SeckillActivity activity) {
         Long activityId = activity.getId();
         String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX + activityId;
         String userKey = SeckillConstant.SECKILL_USER_KEY_PREFIX + activityId;
 
+        // 检查缓存是否已存在
         Boolean stockExists = stringRedisTemplate.hasKey(stockKey);
         Boolean userExists = stringRedisTemplate.hasKey(userKey);
 
-        // 恢复库存缓存
+        // 库存缓存丢失：使用setIfAbsent避免并发写入
         if (!Boolean.TRUE.equals(stockExists)) {
-            log.warn("活动[{}] Redis库存缓存丢失，从DB恢复: {}", activityId, activity.getAvailableStock());
-            stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(activity.getAvailableStock()));
+            Boolean firstWrite = stringRedisTemplate.opsForValue()
+                    .setIfAbsent(stockKey, String.valueOf(activity.getAvailableStock()));
+            if (Boolean.TRUE.equals(firstWrite)) {
+                log.info("活动[{}] Redis库存缓存重建完成: {}", activityId, activity.getAvailableStock());
+            }
         }
 
-        // 恢复用户购买记录缓存
+        // 用户购买记录缓存丢失：需要查数据库，使用分布式锁
         if (!Boolean.TRUE.equals(userExists)) {
-            rebuildUserSetFromDB(activityId, userKey);
+            rebuildUserCacheWithLock(activityId, userKey);
+        }
+    }
+
+    /**
+     * 使用分布式锁重建用户购买记录缓存
+     */
+    private void rebuildUserCacheWithLock(Long activityId, String userKey) {
+        String lockKey = SeckillConstant.SECKILL_USER_LOCK_KEY_PREFIX + activityId;
+
+        try {
+            // 尝试获取锁
+            Boolean locked = stringRedisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, "1", SeckillConstant.LOCK_EXPIRE_SECONDS, TimeUnit.SECONDS);
+
+            if (Boolean.TRUE.equals(locked)) {
+                try {
+                    // 双重检查：获取锁后再次检查缓存是否存在
+                    Boolean exists = stringRedisTemplate.hasKey(userKey);
+                    if (!Boolean.TRUE.equals(exists)) {
+                        rebuildUserSetFromDB(activityId, userKey);
+                    }
+                } finally {
+                    // 释放锁
+                    stringRedisTemplate.delete(lockKey);
+                }
+            } else {
+                // 未获取到锁，等待其他线程完成重建
+                boolean cacheReady = false;
+
+                for (int retry = 0; retry < SeckillConstant.LOCK_RETRY_TIMES; retry++) {
+                    try {
+                        Thread.sleep(SeckillConstant.LOCK_WAIT_MILLISECONDS);
+                        Boolean exists = stringRedisTemplate.hasKey(userKey);
+                        if (Boolean.TRUE.equals(exists)) {
+                            cacheReady = true;
+                            break;
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+
+                // 缓存未就绪，抛出异常阻断请求，避免重复下单漏洞
+                if (!cacheReady) {
+                    log.debug("活动[{}] 用户缓存重建超时，拒绝请求", activityId);
+                    throw new BusinessException("系统繁忙，请稍后重试");
+                }
+            }
+        } catch (BusinessException e) {
+            // 等待缓存超时手动throw的业务异常，属于预期限流，直接透传
+            throw e;
+        } catch (Exception e) {
+            // Redis宕机、数据库超时、网络IO异常等非预期系统故障
+            log.error("活动[{}] 用户缓存重建失败", activityId, e);
+            throw new BusinessException("系统繁忙，请稍后重试");
         }
     }
 
@@ -214,12 +273,12 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
                     .map(String::valueOf)
                     .toArray(String[]::new);
             stringRedisTemplate.opsForSet().add(userKey, userIdStrs);
-            log.warn("活动[{}] Redis用户Set缓存丢失，从DB重建完成: {} 位用户", activityId, userIds.size());
+            log.info("活动[{}] Redis用户Set缓存重建完成: {} 位用户", activityId, userIds.size());
         } else {
             // 确保Set存在（即使为空）
-            stringRedisTemplate.opsForSet().add(userKey, "init_placeholder");
-            stringRedisTemplate.opsForSet().remove(userKey, "init_placeholder");
-            log.warn("活动[{}] Redis用户Set缓存丢失，初始化为空Set", activityId);
+            stringRedisTemplate.opsForSet().add(userKey, SeckillConstant.REDIS_SET_EMPTY_PLACEHOLDER);
+            stringRedisTemplate.opsForSet().remove(userKey, SeckillConstant.REDIS_SET_EMPTY_PLACEHOLDER);
+            log.info("活动[{}] Redis用户Set缓存初始化为空Set", activityId);
         }
     }
 
@@ -228,8 +287,10 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
         String userKey = SeckillConstant.SECKILL_USER_KEY_PREFIX + activityId;
 
         long currentTime = System.currentTimeMillis() / 1000;
-        long startTime = activity.getStartTime().toEpochSecond(ZoneOffset.ofHours(8));
-        long endTime = activity.getEndTime().toEpochSecond(ZoneOffset.ofHours(8));
+        // 使用系统默认时区，避免时区硬编码导致的跨环境问题
+        ZoneOffset zoneOffset = ZonedDateTime.now().getOffset();
+        long startTime = activity.getStartTime().toEpochSecond(zoneOffset);
+        long endTime = activity.getEndTime().toEpochSecond(zoneOffset);
 
         return stringRedisTemplate.execute(
             seckillLuaScript,
@@ -252,7 +313,7 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
         };
     }
 
-    private Order createOrder(Long userId, SeckillActivity activity, Product product, AddressVO address) {
+    private Order createOrder(Long userId, SeckillActivity activity, AddressVO address) {
         // 1. 创建主订单
         Order order = Order.builder()
             .orderNo(orderNoGenerator.generateSeckillOrderNo(userId))
@@ -271,12 +332,12 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
             .build();
         orderService.save(order);
 
-        // 2. 创建订单项
+        // 2. 创建订单项（使用快照信息）
         OrderItem orderItem = OrderItem.builder()
                 .orderId(order.getId())
-                .productId(product.getId())
-                .productName(product.getName())
-                .productImage(product.getImageUrl())
+                .productId(activity.getProductId())
+                .productName(activity.getSeckillProductName())
+                .productImage(activity.getSeckillProductImage())
                 .unitPrice(activity.getSeckillPrice())
                 .quantity(1)
                 .totalPrice(activity.getSeckillPrice())
@@ -325,21 +386,21 @@ public class SeckillOrderServiceImpl extends ServiceImpl<SeckillOrderMapper, Sec
                 .update();
 
         if (!success) {
-            throw new BusinessException("MySQL库存扣减失败");
+            throw new BusinessException("秒杀库存扣减失败");
         }
     }
 
 
-    private SeckillExecuteVO buildSuccessVO(Order order, Long seckillOrderId, BigDecimal seckillPrice, Product product) {
+    private SeckillExecuteVO buildSuccessVO(Order order, Long seckillOrderId, SeckillActivity activity) {
         return SeckillExecuteVO.builder()
             .seckillOrderId(seckillOrderId)
             .orderId(order.getId())
             .orderNo(order.getOrderNo())
             .status(SeckillConstant.SECKILL_RESULT_SUCCESS)
             .message("秒杀成功，请在" + SeckillConstant.SECKILL_PAY_TIMEOUT_MINUTES + "分钟内完成支付，超时订单将自动取消")
-            .seckillPrice(seckillPrice)
-            .productName(product.getName())
-            .productImage(product.getImageUrl())
+            .seckillPrice(activity.getSeckillPrice())
+            .productName(activity.getSeckillProductName())
+            .productImage(activity.getSeckillProductImage())
             .totalAmount(order.getTotalAmount())
             .quantity(1)
             .paymentTimeout(SeckillConstant.SECKILL_PAY_TIMEOUT_MINUTES)

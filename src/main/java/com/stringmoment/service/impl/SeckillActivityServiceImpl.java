@@ -12,29 +12,32 @@ import com.stringmoment.mapper.SeckillActivityMapper;
 import com.stringmoment.model.request.AdminSeckillActivityListQueryDTO;
 import com.stringmoment.model.request.SeckillActivityAddDTO;
 import com.stringmoment.model.request.SeckillActivityUpdateDTO;
-import com.stringmoment.model.response.ProductVO;
 import com.stringmoment.model.response.SeckillActivityPageVO;
 import com.stringmoment.model.response.SeckillActivitySimpleVO;
 import com.stringmoment.model.response.SeckillActivityVO;
 import com.stringmoment.service.ProductService;
 import com.stringmoment.service.SeckillActivityService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMapper, SeckillActivity> implements SeckillActivityService {
 
     @Autowired
     private ProductService productService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
 
     /**
@@ -62,36 +65,14 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
             return Collections.emptyList();
         }
 
-        // 3. 查询对应商品（只查询上架商品）
-        List<Long> productIds = activityList.stream()
-                .map(SeckillActivity::getProductId)
-                .distinct()
-                .toList();
-
-        // 只查询上架商品
-        Map<Long, Product> productMap = productService.lambdaQuery()
-                .in(Product::getId, productIds)
-                .eq(Product::getStatus, ProductConstant.PRODUCT_STATUS_ON)
-                .list()
-                .stream()
-                .collect(Collectors.toMap(Product::getId, p -> p));
-
-        // 4. 转换为VO（过滤掉商品已下架的活动）
+        // 3. 转换为VO（使用快照信息）
         return activityList.stream()
-                .filter(activity -> productMap.containsKey(activity.getProductId()))  // 过滤掉下架商品的活动
-                .map(activity -> {
-                    Product product = productMap.get(activity.getProductId());
-                    String productName = product.getName();
-                    String productImage = product.getImageUrl();
-                    BigDecimal originalPrice = product.getPrice();
-
-                    return SeckillActivitySimpleVO.fromEntity(activity, productName, productImage, originalPrice);
-                })
+                .map(SeckillActivitySimpleVO::fromEntityWithSnapshot)
                 .toList();
     }
 
     /**
-     * 获取秒杀活动详情（用户端：只查询未开始和进行中的活动，且商品必须上架）
+     * 获取秒杀活动详情（用户端：只查询未开始和进行中的活动）
      */
     @Override
     public SeckillActivityVO getSeckillActivityDetail(Long id) {
@@ -107,10 +88,8 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
             throw new BusinessException("秒杀活动已结束");
         }
 
-        // 3. 查询秒杀商品（用户只能查看上架商品）
-        ProductVO productVO = productService.getProductDetail(activity.getProductId());
-
-        return SeckillActivityVO.fromEntity(activity, productVO);
+        // 3. 返回VO（使用快照信息）
+        return SeckillActivityVO.fromEntityWithSnapshot(activity);
     }
 
     // ==================== 管理员端管理功能 ====================
@@ -140,10 +119,13 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
             throw new BusinessException("结束时间必须晚于开始时间");
         }
 
-        // 4. 创建秒杀活动（默认状态为未开始）
+        // 4. 创建秒杀活动，复制商品快照信息
         SeckillActivity activity = SeckillActivity.builder()
                 .name(dto.getName())
                 .productId(dto.getProductId())
+                .seckillProductName(product.getName())  // 商品名称快照
+                .seckillProductImage(product.getImageUrl())  // 商品图片快照
+                .seckillProductPrice(product.getPrice())  // 商品原价快照
                 .seckillPrice(dto.getSeckillPrice())
                 .totalStock(dto.getTotalStock())
                 .availableStock(dto.getTotalStock())  // 初始可用库存等于总库存
@@ -155,9 +137,8 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
         // 5. 保存到数据库
         save(activity);
 
-        // 6. 返回VO
-        ProductVO productVO = ProductVO.fromEntity(product);
-        return SeckillActivityVO.fromEntity(activity, productVO);
+        // 6. 返回VO（使用快照信息）
+        return SeckillActivityVO.fromEntityWithSnapshot(activity);
     }
 
     /**
@@ -172,33 +153,58 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
             throw new BusinessException("秒杀活动不存在");
         }
 
-        // 2. 校验活动状态（只有未开始的活动可以修改）
-        if (!activity.getStatus().equals(SeckillConstant.SECKILL_ACTIVITY_NOT_STARTED)) {
-            throw new BusinessException("只能修改未开始的秒杀活动");
+        // 2. 进行中的活动禁止编辑
+        if (activity.getStatus().equals(SeckillConstant.SECKILL_ACTIVITY_ON_GOING)) {
+            throw new BusinessException("进行中的秒杀活动无法编辑");
         }
 
-        // 3. 如果修改了秒杀价格，需要校验
+        // 3. 校验起止时间合法性（前置校验）
+        if (dto.getStartTime() != null && dto.getEndTime() != null) {
+            if (dto.getEndTime().isBefore(dto.getStartTime())) {
+                throw new BusinessException("结束时间不能早于开始时间");
+            }
+        }
+        // 如果只传了startTime，用数据库endTime校验
+        if (dto.getStartTime() != null && dto.getEndTime() == null) {
+            if (activity.getEndTime().isBefore(dto.getStartTime())) {
+                throw new BusinessException("结束时间不能早于开始时间");
+            }
+        }
+        // 如果只传了endTime，用数据库startTime校验
+        if (dto.getEndTime() != null && dto.getStartTime() == null) {
+            if (dto.getEndTime().isBefore(activity.getStartTime())) {
+                throw new BusinessException("结束时间不能早于开始时间");
+            }
+        }
+
+        // 4. 如果修改了秒杀价格，需要校验（使用快照原价）
         if (dto.getSeckillPrice() != null) {
-            Product product = productService.getById(activity.getProductId());
-            if (dto.getSeckillPrice().compareTo(product.getPrice()) >= 0) {
+            if (dto.getSeckillPrice().compareTo(activity.getSeckillProductPrice()) >= 0) {
                 throw new BusinessException("秒杀价格必须低于商品原价");
             }
             activity.setSeckillPrice(dto.getSeckillPrice());
         }
 
-        // 4. 如果修改了总库存，需要同步更新可用库存
+        // 5. 如果修改了总库存，需要同步更新可用库存
         if (dto.getTotalStock() != null) {
-            int stockDiff = dto.getTotalStock() - activity.getTotalStock();
-            activity.setTotalStock(dto.getTotalStock());
-            activity.setAvailableStock(activity.getAvailableStock() + stockDiff);
+            int newTotalStock = dto.getTotalStock();
+            int oldTotalStock = activity.getTotalStock();
+            int stockDiff = newTotalStock - oldTotalStock;
 
-            // 校验库存不能为负数
-            if (activity.getAvailableStock() < 0) {
-                throw new BusinessException("可用库存不能为负数，请增加总库存");
+            // 校验库存边界：防止可用库存变为负数
+            if (activity.getAvailableStock() + stockDiff < 0) {
+                throw new BusinessException("库存不足，无法减少库存。当前可用库存：" + activity.getAvailableStock() +
+                        "，尝试减少：" + Math.abs(stockDiff));
             }
+
+            activity.setTotalStock(newTotalStock);
+            activity.setAvailableStock(activity.getAvailableStock() + stockDiff);
+            
+            // 同步更新Redis缓存（如果缓存已存在）
+            syncRedisStockAfterUpdate(activity.getId(), activity.getAvailableStock());
         }
 
-        // 5. 更新时间字段
+        // 6. 更新时间字段
         if (dto.getStartTime() != null) {
             activity.setStartTime(dto.getStartTime());
         }
@@ -206,22 +212,16 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
             activity.setEndTime(dto.getEndTime());
         }
 
-        // 6. 校验时间逻辑
-        if (activity.getEndTime().isBefore(activity.getStartTime())) {
-            throw new BusinessException("结束时间必须晚于开始时间");
-        }
-
         // 7. 更新其他字段
         if (StringUtils.hasText(dto.getName())) {
             activity.setName(dto.getName());
         }
 
-        // 9. 保存更新
+        // 8. 保存更新
         updateById(activity);
 
-        // 10. 返回VO
-        ProductVO productVO = productService.getProductDetailAdmin(activity.getProductId());
-        return SeckillActivityVO.fromEntity(activity, productVO);
+        // 9. 返回VO（使用快照信息）
+        return SeckillActivityVO.fromEntityWithSnapshot(activity);
     }
 
     /**
@@ -236,13 +236,36 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
             throw new BusinessException("秒杀活动不存在");
         }
 
-        // 2. 校验活动状态（只有未开始的活动可以删除）
-        if (!activity.getStatus().equals(SeckillConstant.SECKILL_ACTIVITY_NOT_STARTED)) {
-            throw new BusinessException("只能删除未开始的秒杀活动");
+        // 2. 进行中禁止删除
+        if (activity.getStatus().equals(SeckillConstant.SECKILL_ACTIVITY_ON_GOING)) {
+            throw new BusinessException("进行中的秒杀活动无法删除");
         }
 
-        // 3. 删除秒杀活动
-        removeById(id);
+        // 3. 执行软删除（is_deleted=1）
+        removeById(id); // MyBatis-Plus会自动执行软删除
+    }
+
+    /**
+     * 停止秒杀活动
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void stopActivity(Long id) {
+        // 1. 查询秒杀活动是否存在
+        SeckillActivity activity = getById(id);
+        if (activity == null) {
+            throw new BusinessException("秒杀活动不存在");
+        }
+
+        // 2. 只能停止进行中的活动
+        if (!activity.getStatus().equals(SeckillConstant.SECKILL_ACTIVITY_ON_GOING)) {
+            throw new BusinessException("只能停止进行中的秒杀活动");
+        }
+
+        // 3. 将状态改为已结束
+        activity.setStatus(SeckillConstant.SECKILL_ACTIVITY_ENDED);
+        activity.setEndTime(LocalDateTime.now()); // 更新结束时间为当前时间
+        updateById(activity);
     }
 
     /**
@@ -281,32 +304,17 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
         result.setTotal(page.getTotal());
         result.setPages((int) page.getPages());
 
-        // 7. 查询对应商品
+        // 7. 获取活动列表
         List<SeckillActivity> activityList = page.getRecords();
         if (CollectionUtils.isEmpty(activityList)) {
             result.setList(Collections.emptyList());
             return result;
         }
 
-        List<Long> productIds = activityList.stream()
-                .map(SeckillActivity::getProductId)
-                .distinct()
-                .toList();
-
-        Map<Long, Product> productMap = productService.listByIds(productIds).stream()
-                .collect(Collectors.toMap(Product::getId, p -> p));
-
-        // 8. 转换秒杀活动列表
+        // 8. 转换秒杀活动列表（使用快照信息）
         result.setList(
                 activityList.stream()
-                        .map(activity -> {
-                            Product product = productMap.get(activity.getProductId());
-                            String productName = product != null ? product.getName() : "商品已下架";
-                            String productImage = product != null ? product.getImageUrl() : "";
-                            BigDecimal originalPrice = product != null ? product.getPrice() : BigDecimal.ZERO;
-
-                            return SeckillActivitySimpleVO.fromEntity(activity, productName, productImage, originalPrice);
-                        })
+                        .map(SeckillActivitySimpleVO::fromEntityWithSnapshot)
                         .toList()
         );
 
@@ -324,9 +332,20 @@ public class SeckillActivityServiceImpl extends ServiceImpl<SeckillActivityMappe
             throw new BusinessException("秒杀活动不存在");
         }
 
-        // 2. 查询秒杀商品（管理员可以查看所有商品，包括下架的）
-        ProductVO productVO = productService.getProductDetailAdmin(activity.getProductId());
+        // 2. 返回VO（使用快照信息）
+        return SeckillActivityVO.fromEntityWithSnapshot(activity);
+    }
 
-        return SeckillActivityVO.fromEntity(activity, productVO);
+    /**
+     * 编辑活动后同步更新Redis库存缓存
+     * 场景：管理员修改未开始活动的库存，Redis缓存可能已存在（预热），需要同步更新
+     */
+    private void syncRedisStockAfterUpdate(Long activityId, Integer newStock) {
+        String stockKey = SeckillConstant.SECKILL_STOCK_KEY_PREFIX + activityId;
+        Boolean exists = stringRedisTemplate.hasKey(stockKey);
+        if (Boolean.TRUE.equals(exists)) {
+            stringRedisTemplate.opsForValue().set(stockKey, String.valueOf(newStock));
+            log.info("编辑活动后同步Redis缓存：活动ID={}, 新库存={}", activityId, newStock);
+        }
     }
 }

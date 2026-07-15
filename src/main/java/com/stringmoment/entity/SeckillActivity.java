@@ -34,7 +34,25 @@ public class SeckillActivity implements Serializable {
      */
     @TableField(value = "product_id")
     private Long productId;
-    
+
+    /**
+     * 商品名称（快照）
+     */
+    @TableField(value = "seckill_product_name")
+    private String seckillProductName;
+
+    /**
+     * 商品图片URL（快照）
+     */
+    @TableField(value = "seckill_product_image")
+    private String seckillProductImage;
+
+    /**
+     * 商品原价（快照）
+     */
+    @TableField(value = "seckill_product_price")
+    private BigDecimal seckillProductPrice;
+
     /**
      * 秒杀价格
      */
@@ -64,6 +82,13 @@ public class SeckillActivity implements Serializable {
      */
     @TableField(value = "status")
     private Integer status;
+
+    /**
+     * 是否删除：0-未删除，1-已删除
+     */
+    @TableLogic
+    @TableField(value = "is_deleted")
+    private Integer isDeleted;
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;

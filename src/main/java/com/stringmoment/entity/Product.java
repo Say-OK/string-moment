@@ -73,6 +73,13 @@ public class Product implements Serializable {
     @TableField(value = "sale_count")
     private Integer saleCount;
 
+    /**
+     * 是否删除：0-未删除，1-已删除
+     */
+    @TableLogic
+    @TableField(value = "is_deleted")
+    private Integer isDeleted;
+
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
