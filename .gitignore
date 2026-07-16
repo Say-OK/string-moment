@@ -71,3 +71,10 @@ src/main/resources/application-*.properties
 
 # 但要保留模板文件
 !src/main/resources/application-example.yml
+
+# 前端依赖包
+frontend/node_modules/
+frontend/dist/
+
+# 用户上传文件
+uploads/
