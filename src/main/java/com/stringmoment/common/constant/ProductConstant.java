@@ -19,6 +19,14 @@ public final class ProductConstant {
     public static final String PRODUCT_DETAIL_CACHE_KEY_PREFIX = "product:detail:";         // 商品详情缓存键前缀
     public static final Long PRODUCT_DETAIL_CACHE_TTL = 1800L;                              // 商品详情缓存过期时间（30分钟）
 
+    // 缓存优化参数
+    public static final int PRODUCT_DETAIL_CACHE_RANDOM_RANGE = 300;                        // Redis TTL随机偏移范围（±5分钟）
+    public static final int PRODUCT_DETAIL_CACHE_EMPTY_TTL = 30;                            // 空值缓存TTL（30秒）
+    public static final int CACHE_DELAY_DELETE_MS = 1000;                                   // 延时双删延时（1秒）
+    public static final int LOCAL_CACHE_MAX_SIZE = 1000;                                    // 本地缓存最大条目数
+    public static final int LOCAL_CACHE_EXPIRE_WRITE_MINUTES = 5;                           // 本地缓存写入过期时间（5分钟）
+    public static final int LOCAL_CACHE_EXPIRE_ACCESS_MINUTES = 3;                          // 本地缓存访问过期时间（3分钟）
+
     // 商品排序字段（数据库字段名）
     public static final String SORT_FIELD_PRICE = "price";
     public static final String SORT_FIELD_SALE_COUNT = "sale_count";

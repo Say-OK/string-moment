@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.stringmoment.common.cache.TwoLevelCacheUtil;
 import com.stringmoment.common.constant.ProductConstant;
 import com.stringmoment.common.exception.BusinessException;
 import com.stringmoment.entity.Product;
@@ -16,6 +18,7 @@ import com.stringmoment.model.request.ProductUpdateDTO;
 import com.stringmoment.model.response.ProductPageVO;
 import com.stringmoment.model.response.ProductVO;
 import com.stringmoment.service.ProductService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -26,11 +29,18 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> implements ProductService {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private Cache<Long, ProductVO> productDetailCache;
+
+    @Autowired
+    private TwoLevelCacheUtil twoLevelCacheUtil;
 
     /**
      * 获取商品列表
@@ -108,36 +118,33 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     }
 
     /**
-     * 获取商品详情
+     * 获取商品详情（多级缓存：Caffeine本地缓存 + Redis分布式缓存）
      */
     @Override
     public ProductVO getProductDetail(Long id) {
-        // 1. 尝试从缓存获取
         String cacheKey = ProductConstant.PRODUCT_DETAIL_CACHE_KEY_PREFIX + id;
-        String cacheValue = stringRedisTemplate.opsForValue().get(cacheKey);
 
-        if (StringUtils.hasText(cacheValue)) {
-            return JSONUtil.toBean(cacheValue, ProductVO.class);
-        }
+        // 使用二级缓存工具类查询（防止穿透、雪崩）
+        ProductVO productVO = twoLevelCacheUtil.getWithCache(
+                cacheKey,
+                productDetailCache,
+                id,
+                ProductVO.class,
+                () -> {
+                    Product product = lambdaQuery()
+                            .eq(Product::getId, id)
+                            .eq(Product::getStatus, ProductConstant.PRODUCT_STATUS_ON)
+                            .one();
+                    return product == null ? null : ProductVO.fromEntity(product);
+                },
+                ProductConstant.PRODUCT_DETAIL_CACHE_TTL.intValue(),  // 基础TTL（30分钟）
+                ProductConstant.PRODUCT_DETAIL_CACHE_RANDOM_RANGE,
+                ProductConstant.PRODUCT_DETAIL_CACHE_EMPTY_TTL
+        );
 
-        // 2. 缓存不存在，查询数据库
-        Product product = lambdaQuery()
-                .eq(Product::getId, id)
-                .eq(Product::getStatus, ProductConstant.PRODUCT_STATUS_ON)
-                .one();
-
-        if (product == null) {
+        if (productVO == null) {
             throw new BusinessException("商品不存在");
         }
-
-        // 3. 转换为VO并缓存
-        ProductVO productVO = ProductVO.fromEntity(product);
-        stringRedisTemplate.opsForValue().set(
-                cacheKey,
-                JSONUtil.toJsonStr(productVO),
-                ProductConstant.PRODUCT_DETAIL_CACHE_TTL,
-                TimeUnit.SECONDS
-        );
 
         return productVO;
     }
@@ -484,12 +491,16 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     // ==================== 缓存清除 ====================
 
     /**
-     * 清除商品详情缓存
-     * @param productId 商品ID
+     * 清除商品详情缓存（延时双删策略）
      */
     private void clearProductDetailCache(Long productId) {
         String cacheKey = ProductConstant.PRODUCT_DETAIL_CACHE_KEY_PREFIX + productId;
-        stringRedisTemplate.delete(cacheKey);
+        twoLevelCacheUtil.evictWithDelayDelete(
+                cacheKey,
+                productDetailCache,
+                productId,
+                ProductConstant.CACHE_DELAY_DELETE_MS
+        );
     }
 
     /**
